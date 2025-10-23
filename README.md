@@ -1,4 +1,6 @@
-# 🎮 LoL PDF Generator
+# 🎮 LoI PDF Generator
+
+<!-- 
 
 A FastAPI web application that generates personalized PDF profiles for League of Legends players. Users can fill out a questionnaire about their gaming experience and receive a beautifully formatted PDF document.
 
@@ -236,4 +238,4 @@ For support and questions:
 
 ---
 
-**Happy Gaming! 🎮**
+**Happy Gaming! 🎮** -->
