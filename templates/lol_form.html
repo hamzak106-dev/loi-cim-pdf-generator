@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}LoL Questions - LoL PDF Generator{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10">
+        <div class="content-card">
+            <div class="lol-header">
+                <h1 class="lol-title">🎮 LoL Questions</h1>
+                <p class="lol-subtitle">Tell us about your League of Legends journey</p>
+            </div>
+            
+            <div class="p-5">
+                <!-- Error Messages -->
+                {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endif %}
+                
+                {% if success %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ success }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endif %}
+                
+                <form method="POST" action="/submit-lol">
+                    <div class="row">
+                        <!-- Required Fields -->
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">
+                                <span class="text-danger">*</span> Summoner Name
+                            </label>
+                            <input type="text" class="form-control" id="name" name="name" required 
+                                   placeholder="Enter your summoner name">
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label">
+                                <span class="text-danger">*</span> Email Address
+                            </label>
+                            <input type="email" class="form-control" id="email" name="email" required 
+                                   placeholder="your.email@example.com">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <!-- Optional Fields -->
+                        <div class="col-md-6 mb-3">
+                            <label for="favorite_champion" class="form-label">Favorite Champion</label>
+                            <select class="form-control" id="favorite_champion" name="favorite_champion">
+                                <option value="">Select your favorite champion</option>
+                                <option value="Ahri">Ahri</option>
+                                <option value="Akali">Akali</option>
+                                <option value="Ashe">Ashe</option>
+                                <option value="Azir">Azir</option>
+                                <option value="Blitzcrank">Blitzcrank</option>
+                                <option value="Caitlyn">Caitlyn</option>
+                                <option value="Darius">Darius</option>
+                                <option value="Draven">Draven</option>
+                                <option value="Ezreal">Ezreal</option>
+                                <option value="Garen">Garen</option>
+                                <option value="Jinx">Jinx</option>
+                                <option value="Katarina">Katarina</option>
+                                <option value="Lee Sin">Lee Sin</option>
+                                <option value="Lux">Lux</option>
+                                <option value="Master Yi">Master Yi</option>
+                                <option value="Morgana">Morgana</option>
+                                <option value="Nasus">Nasus</option>
+                                <option value="Riven">Riven</option>
+                                <option value="Thresh">Thresh</option>
+                                <option value="Yasuo">Yasuo</option>
+                                <option value="Zed">Zed</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="rank" class="form-label">Current Rank</label>
+                            <select class="form-control" id="rank" name="rank">
+                                <option value="">Select your current rank</option>
+                                <option value="Iron">Iron</option>
+                                <option value="Bronze">Bronze</option>
+                                <option value="Silver">Silver</option>
+                                <option value="Gold">Gold</option>
+                                <option value="Platinum">Platinum</option>
+                                <option value="Diamond">Diamond</option>
+                                <option value="Master">Master</option>
+                                <option value="Grandmaster">Grandmaster</option>
+                                <option value="Challenger">Challenger</option>
+                                <option value="Unranked">Unranked</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="main_role" class="form-label">Main Role</label>
+                            <select class="form-control" id="main_role" name="main_role">
+                                <option value="">Select your main role</option>
+                                <option value="Top">Top</option>
+                                <option value="Jungle">Jungle</option>
+                                <option value="Mid">Mid</option>
+                                <option value="ADC">ADC (Bot)</option>
+                                <option value="Support">Support</option>
+                                <option value="Fill">Fill</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="years_playing" class="form-label">Years Playing LoL</label>
+                            <select class="form-control" id="years_playing" name="years_playing">
+                                <option value="">How long have you been playing?</option>
+                                <option value="1">Less than 1 year</option>
+                                <option value="1">1 year</option>
+                                <option value="2">2 years</option>
+                                <option value="3">3 years</option>
+                                <option value="4">4 years</option>
+                                <option value="5">5 years</option>
+                                <option value="6">6 years</option>
+                                <option value="7">7 years</option>
+                                <option value="8">8 years</option>
+                                <option value="9">9 years</option>
+                                <option value="10">10+ years</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                            <a href="/" class="btn btn-outline-secondary me-md-2">
+                                ← Back to Home
+                            </a>
+                            <button type="submit" class="btn btn-lol">
+                                📄 Generate PDF
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="footer-text">
+                        <small class="text-muted">
+                            <span class="text-danger">*</span> Required fields | 
+                            Your information will be used to generate a personalized PDF
+                        </small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Add some interactive effects
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add focus effects to form controls
+        const formControls = document.querySelectorAll('.form-control');
+        formControls.forEach(control => {
+            control.addEventListener('focus', function() {
+                this.parentElement.style.transform = 'scale(1.02)';
+                this.parentElement.style.transition = 'transform 0.2s ease';
+            });
+            
+            control.addEventListener('blur', function() {
+                this.parentElement.style.transform = 'scale(1)';
+            });
+        });
+    });
+</script>
+{% endblock %}
