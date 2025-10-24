@@ -49,11 +49,11 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label for="industry" class="form-label fw-semibold">Industry</label>
-                    <input type="text" class="form-control form-control-lg" id="industry" name="industry" required value="{{ form_data.industry if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="industry" name="industry"  value="{{ form_data.industry if form_data else '' }}">
                   </div>
                   <div class="col-md-6">
                     <label for="location" class="form-label fw-semibold">Location</label>
-                    <input type="text" class="form-control form-control-lg" id="location" name="location" required value="{{ form_data.location if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="location" name="location"  value="{{ form_data.location if form_data else '' }}">
                   </div>
                 </div>
               </div>
@@ -66,21 +66,21 @@
                     <label for="purchase_price" class="form-label fw-semibold">Purchase Price</label>
                     <div class="input-group input-group-lg">
                       <span class="input-group-text">$</span>
-                      <input type="number" class="form-control" id="purchase_price" name="purchase_price" min="0" step="any" required value="{{ form_data.purchase_price if form_data else '' }}">
+                      <input type="number" class="form-control" id="purchase_price" name="purchase_price" min="0" step="any"  value="{{ form_data.purchase_price if form_data else '' }}">
                     </div>
                   </div>
                   <div class="col-md-4">
                     <label for="revenue" class="form-label fw-semibold">Revenue</label>
                     <div class="input-group input-group-lg">
                       <span class="input-group-text">$</span>
-                      <input type="number" class="form-control" id="revenue" name="revenue" min="0" step="any" required value="{{ form_data.revenue if form_data else '' }}">
+                      <input type="number" class="form-control" id="revenue" name="revenue" min="0" step="any"  value="{{ form_data.revenue if form_data else '' }}">
                     </div>
                   </div>
                   <div class="col-md-4">
                     <label for="avg_sde" class="form-label fw-semibold">Avg SDE</label>
                     <div class="input-group input-group-lg">
                       <span class="input-group-text">$</span>
-                      <input type="number" class="form-control" id="avg_sde" name="avg_sde" min="0" step="any" required value="{{ form_data.avg_sde if form_data else '' }}">
+                      <input type="number" class="form-control" id="avg_sde" name="avg_sde" min="0" step="any"  value="{{ form_data.avg_sde if form_data else '' }}">
                     </div>
                   </div>
                 </div>
@@ -92,29 +92,29 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label for="seller_role" class="form-label fw-semibold">Seller Role</label>
-                    <input type="text" class="form-control form-control-lg" id="seller_role" name="seller_role" required value="{{ form_data.seller_role if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="seller_role" name="seller_role"  value="{{ form_data.seller_role if form_data else '' }}">
                   </div>
                   <div class="col-md-6">
                     <label for="reason_for_selling" class="form-label fw-semibold">Reason for Selling</label>
-                    <input type="text" class="form-control form-control-lg" id="reason_for_selling" name="reason_for_selling" required value="{{ form_data.reason_for_selling if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="reason_for_selling" name="reason_for_selling"  value="{{ form_data.reason_for_selling if form_data else '' }}">
                   </div>
                 </div>
                 
                 <div class="row g-3 mt-1">
                   <div class="col-md-6">
                     <label for="owner_involvement" class="form-label fw-semibold">Owner Involvement (high-level role description, hours per week, etc.)</label>
-                    <input type="text" class="form-control form-control-lg" id="owner_involvement" name="owner_involvement" required value="{{ form_data.owner_involvement if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="owner_involvement" name="owner_involvement"  value="{{ form_data.owner_involvement if form_data else '' }}">
                   </div>
                   <div class="col-md-6">
                     <label for="customer_concentration_risk" class="form-label fw-semibold">Customer Concentration Risk</label>
-                    <input type="text" class="form-control form-control-lg" id="customer_concentration_risk" name="customer_concentration_risk" required value="{{ form_data.customer_concentration_risk if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="customer_concentration_risk" name="customer_concentration_risk"  value="{{ form_data.customer_concentration_risk if form_data else '' }}">
                   </div>
                 </div>
 
                 <div class="row g-3 mt-1">
                   <div class="col-md-12">
                     <label for="deal_competitiveness" class="form-label fw-semibold">How Competitive is the Deal?</label>
-                    <input type="text" class="form-control form-control-lg" id="deal_competitiveness" name="deal_competitiveness" required value="{{ form_data.deal_competitiveness if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="deal_competitiveness" name="deal_competitiveness"  value="{{ form_data.deal_competitiveness if form_data else '' }}">
                   </div>
                 </div>
 
@@ -136,17 +136,17 @@
                 
                 <div class="mb-4">
                   <label for="search_narrative_relation" class="form-label fw-semibold">1. How does this relate to your search narrative?</label>
-                  <textarea class="form-control" id="search_narrative_relation" name="search_narrative_relation" rows="4" required>{{ form_data.search_narrative_relation if form_data else '' }}</textarea>
+                  <textarea class="form-control" id="search_narrative_relation" name="search_narrative_relation" rows="4">{{ form_data.search_narrative_relation if form_data else '' }}</textarea>
                 </div>
 
                 <div class="mb-4">
                   <label for="deal_likes_dislikes" class="form-label fw-semibold">2. What do you like/don't like about the deal?</label>
-                  <textarea class="form-control" id="deal_likes_dislikes" name="deal_likes_dislikes" rows="4" required>{{ form_data.deal_likes_dislikes if form_data else '' }}</textarea>
+                  <textarea class="form-control" id="deal_likes_dislikes" name="deal_likes_dislikes" rows="4" >{{ form_data.deal_likes_dislikes if form_data else '' }}</textarea>
                 </div>
 
                 <div class="mb-4">
                   <label for="deal_questions_concerns" class="form-label fw-semibold">3. What questions/concerns do you have about the deal?</label>
-                  <textarea class="form-control" id="deal_questions_concerns" name="deal_questions_concerns" rows="4" required>{{ form_data.deal_questions_concerns if form_data else '' }}</textarea>
+                  <textarea class="form-control" id="deal_questions_concerns" name="deal_questions_concerns" rows="4">{{ form_data.deal_questions_concerns if form_data else '' }}</textarea>
                 </div>
               </div>
 
