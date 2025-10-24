@@ -36,12 +36,12 @@ class Settings:
         "credentials/google_drive_credentials.json"
     )
     
-    # Email Configuration (Placeholders)
+    # Email Configuration
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    EMAIL_USERNAME: Optional[str] = os.getenv("EMAIL_USERNAME")
-    EMAIL_PASSWORD: Optional[str] = os.getenv("EMAIL_PASSWORD")
-    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "noreply@businessacquisition.com")
+    EMAIL_USERNAME: str = os.getenv("EMAIL_USERNAME", "areeba.shehzadi@bitandbytes.net")
+    EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "cnohcobobnwvyzwl")
+    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "areeba.shehzadi@bitandbytes.net")
     
     # Slack Configuration (Placeholders)
     SLACK_WEBHOOK_URL: Optional[str] = os.getenv("SLACK_WEBHOOK_URL")
