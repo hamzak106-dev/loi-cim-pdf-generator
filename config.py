@@ -3,6 +3,10 @@ Configuration settings for Business Acquisition PDF Generator
 """
 import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class Settings:
     """Application configuration settings"""

@@ -3,6 +3,12 @@ Background tasks for Business Acquisition PDF Generator using Celery
 """
 import json
 import os
+import asyncio
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
 from celery_app import celery_app
 from services import pdf_service, email_service, slack_service, google_drive_service
 from models import BusinessAcquisition

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from models import BusinessAcquisition
 from services import google_drive_service, email_service, slack_service, pdf_service
 from database import get_db
+from tasks import process_submission_complete
 
 # Initialize templates
 templates = Jinja2Templates(directory="templates")
@@ -92,7 +93,8 @@ async def submit_business_acquisition(request: Request, db: Session = Depends(ge
         terms_accepted = True if str(terms_raw).lower() in ['on', 'true', '1', 'yes'] else False
 
         # Minimal validation
-        if not full_name or not email or purchase_price is None or revenue is None or not terms_accepted:
+        if not full_name or not email:
+            print(full_name, email, terms_accepted)
             simple_form_data = {
                 'full_name': full_name,
                 'email': email,
@@ -144,8 +146,8 @@ async def submit_business_acquisition(request: Request, db: Session = Depends(ge
         db.commit()
         db.refresh(submission)
 
-        # Files (simple handling)
-        file_urls: List[str] = []
+        # Handle files (simple handling for background task)
+        files_data = []
         files = []
         if hasattr(form, 'getlist'):
             files = [f for f in form.getlist('files') if getattr(f, 'filename', '')]
@@ -154,41 +156,45 @@ async def submit_business_acquisition(request: Request, db: Session = Depends(ge
             if one_file and getattr(one_file, 'filename', ''):
                 files = [one_file]
 
-        if files:
-            file_urls = await google_drive_service.upload_multiple_files(files, submission.id)
-            submission.file_urls = json.dumps(file_urls)
-            submission.attachment_count = len(file_urls)
-            db.commit()
+        # Prepare file data for background task
+        for file in files:
+            if hasattr(file, 'filename') and file.filename:
+                files_data.append({
+                    'filename': file.filename,
+                    'content_type': getattr(file, 'content_type', 'application/octet-stream'),
+                    'size': getattr(file, 'size', 0)
+                })
 
-        # Generate PDF (simple)
-        pdf_path = pdf_service.generate_business_acquisition_pdf(submission)
-        submission.pdf_generated = True
-        
-        # Send email with PDF attachment
-        email_sent = await email_service.send_confirmation_email_with_pdf(submission, pdf_path)
-        submission.email_sent = email_sent
-        submission.is_processed = True
-        db.commit()
-
-        # Optional notifications (keep simple)
+        # Start complete background processing
         try:
-            await email_service.send_admin_notification(submission)
-            await slack_service.send_notification(submission)
-        except Exception:
-            pass
+            # Start the complete processing task in background
+            task = process_submission_complete.delay(submission.id, files_data)
+            
+            print(f"🚀 Started background processing for submission {submission.id}")
+            print(f"📋 Processing task ID: {task.id}")
+            
+        except Exception as e:
+            print(f"⚠️ Failed to start background tasks: {e}")
+            # Fallback to synchronous processing if Celery is not available
+            try:
+                pdf_path = pdf_service.generate_business_acquisition_pdf(submission)
+                await email_service.send_confirmation_email_with_pdf(submission, pdf_path)
+                submission.pdf_generated = True
+                submission.email_sent = True
+                submission.is_processed = True
+                db.commit()
+                
+                # Clean up
+                import os
+                if os.path.exists(pdf_path):
+                    os.remove(pdf_path)
+            except Exception as fallback_error:
+                print(f"❌ Fallback processing also failed: {fallback_error}")
 
-        # Clean up PDF file after sending
-        try:
-            import os
-            if os.path.exists(pdf_path):
-                os.remove(pdf_path)
-        except Exception:
-            pass
-
-        # Return success page instead of file download
+        # Return success page immediately (processing continues in background)
         return templates.TemplateResponse("business_form.html", {
             "request": request,
-            "success": f"Thank you {submission.full_name}! Your business acquisition analysis report has been sent to {submission.email}. Please check your email inbox.",
+            "success": f"Thank you {submission.full_name}! Your submission has been received. Your business acquisition analysis report will be sent to {submission.email} shortly. Please check your email inbox in a few minutes.",
             "form_data": {}
         })
 

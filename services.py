@@ -92,7 +92,7 @@ class EmailService:
             msg['From'] = self.from_email
             msg['To'] = submission.email
             msg['Subject'] = f"Business Acquisition Analysis Report - {submission.full_name}"
-            
+            print("Email sent successfully to", submission.email)
             # Email body
             body = f"""
             Dear {submission.full_name},
@@ -200,27 +200,27 @@ class PDFGenerationService:
         temp_file.close()
         
         # Create PDF document
-        doc = SimpleDocTemplate(pdf_path, pagesize=letter, topMargin=0.5*inch)
+        doc = SimpleDocTemplate(pdf_path, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
         story = []
         
         # Get styles
         styles = getSampleStyleSheet()
         
-        # Light Blue Business Theme Colors
-        primary_blue = colors.HexColor('#87CEEB')  # Sky Blue
-        dark_blue = colors.HexColor('#4682B4')     # Steel Blue
-        accent_blue = colors.HexColor('#B0E0E6')   # Powder Blue
-        text_dark = colors.HexColor('#2C3E50')     # Dark Blue Gray
-        text_light = colors.HexColor('#5D6D7E')    # Light Gray
+        # Business Blue Theme Colors
+        primary_blue = colors.HexColor('#1B62CF')      # Main Brand Blue
+        light_blue = colors.HexColor('#4A8FE7')        # Lighter Blue
+        accent_blue = colors.HexColor('#E8F1FC')       # Very Light Blue for backgrounds
+        text_dark = colors.HexColor('#2C3E50')         # Dark text
+        text_medium = colors.HexColor('#5D6D7E')       # Medium Gray
         
-        # Custom styles with light blue theme
+        # Custom styles
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=28,
-            spaceAfter=20,
+            fontSize=32,
+            spaceAfter=10,
             alignment=TA_CENTER,
-            textColor=dark_blue,
+            textColor=colors.white,
             fontName='Helvetica-Bold'
         )
         
@@ -230,146 +230,160 @@ class PDFGenerationService:
             fontSize=14,
             spaceAfter=30,
             alignment=TA_CENTER,
-            textColor=text_light,
-            fontName='Helvetica-Oblique'
+            textColor=colors.white,
+            fontName='Helvetica'
         )
         
-        header_style = ParagraphStyle(
-            'CustomHeader',
+        section_header_style = ParagraphStyle(
+            'SectionHeader',
             parent=styles['Heading2'],
-            fontSize=18,
+            fontSize=16,
             spaceAfter=15,
-            spaceBefore=20,
-            textColor=dark_blue,
+            spaceBefore=25,
+            textColor=primary_blue,
             fontName='Helvetica-Bold'
         )
         
         label_style = ParagraphStyle(
             'Label',
             parent=styles['Normal'],
-            textColor=dark_blue,
+            textColor=primary_blue,
             fontName='Helvetica-Bold',
-            fontSize=11
+            fontSize=10,
+            spaceAfter=3
         )
         
         value_style = ParagraphStyle(
             'Value',
             parent=styles['Normal'],
             textColor=text_dark,
-            fontSize=11
+            fontSize=11,
+            spaceAfter=15
         )
         
-        # Header with company branding
-        story.append(Paragraph("🏢 BUSINESS ACQUISITION ANALYSIS", title_style))
-        story.append(Paragraph("Professional Investment Opportunity Report", subtitle_style))
+        # Header with gradient effect (simulated with colored table)
+        header_data = [[Paragraph("BUSINESS ACQUISITION ANALYSIS", title_style)],
+                    [Paragraph("Professional Investment Opportunity Report", subtitle_style)]]
         
-        # Date and submission info
-        if submission.created_at:
-            date_style = ParagraphStyle(
-                'DateStyle',
-                parent=styles['Normal'],
-                fontSize=10,
-                alignment=TA_CENTER,
-                textColor=text_light
-            )
-            story.append(Paragraph(f"Generated on {submission.created_at.strftime('%B %d, %Y at %I:%M %p')}", date_style))
+        header_table = Table(header_data, colWidths=[7*inch])
+        header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), primary_blue),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 20),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 20),
+            ('LINEBELOW', (0,-1), (-1,-1), 3, light_blue),
+        ]))
+        story.append(header_table)
         story.append(Spacer(1, 30))
 
-        # Helper to render key-value pairs as Paragraph
-        def kv(label: str, value: str) -> Paragraph:
-            safe_value = value if value not in (None, "") else 'Not provided'
-            return Paragraph(f"<b>{label}:</b> {safe_value}", styles['Normal'])
-
-        # Executive Summary Section
-        story.append(Paragraph("📊 EXECUTIVE SUMMARY", header_style))
+        # Business Overview Section - 6 column layout (2 columns, 6 rows)
+        story.append(Paragraph("📊 Business Overview", section_header_style))
         
-        # Key metrics in a styled table
-        key_metrics = [
-            ["Submitter", submission.full_name or 'Not provided'],
-            ["Industry", submission.industry or 'Not specified'],
-            ["Location", submission.location or 'Not specified'],
-            ["Purchase Price", submission.formatted_purchase_price],
-            ["Annual Revenue", submission.formatted_revenue],
-            ["Average SDE", submission.formatted_avg_sde],
-        ]
-        
-        metrics_table = Table(key_metrics, colWidths=[2*inch, 4*inch])
-        metrics_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (0,-1), primary_blue),
-            ('BACKGROUND', (1,0), (1,-1), accent_blue),
-            ('TEXTCOLOR', (0,0), (0,-1), colors.white),
-            ('TEXTCOLOR', (1,0), (1,-1), text_dark),
-            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-            ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
-            ('FONTNAME', (1,0), (1,-1), 'Helvetica'),
-            ('FONTSIZE', (0,0), (-1,-1), 12),
-            ('GRID', (0,0), (-1,-1), 1, dark_blue),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('TOPPADDING', (0,0), (-1,-1), 10),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-            ('LEFTPADDING', (0,0), (-1,-1), 12),
-            ('RIGHTPADDING', (0,0), (-1,-1), 12),
-        ]))
-        story.append(metrics_table)
-        story.append(Spacer(1, 25))
-        
-        # Business Details Section
-        story.append(Paragraph("🏢 BUSINESS DETAILS", header_style))
-        
-        business_details = [
-            ("Role in Transaction", submission.seller_role or 'Not specified'),
-            ("Reason for Selling", submission.reason_for_selling or 'Not provided'),
-            ("Owner Involvement", submission.owner_involvement or 'Not provided'),
-            ("Customer Risk Analysis", submission.customer_concentration_risk or 'Not provided'),
-            ("Market Competition", submission.deal_competitiveness or 'Not provided'),
-            ("Seller Financing", submission.seller_note_openness or 'Not provided'),
-        ]
-        
-        for label, value in business_details:
-            story.append(Paragraph(f"<b>{label}:</b>", label_style))
-            story.append(Paragraph(value, value_style))
-            story.append(Spacer(1, 12))
-        
-        story.append(Spacer(1, 15))
-
-        # Investment Analysis Section
-        story.append(Paragraph("📈 INVESTMENT ANALYSIS & SEARCH NARRATIVE", header_style))
-
-        narrative_sections = [
-            ("🎯 Search Narrative Alignment", submission.cim_search_narrative_fit or 'Not provided'),
-            ("🔗 Strategic Connection", submission.search_narrative_relation or 'Not provided'),
-            ("👍 Investment Highlights & Concerns", submission.deal_likes_dislikes or 'Not provided'),
-            ("❓ Due Diligence Questions", submission.deal_questions_concerns or 'Not provided'),
-        ]
-
-        for label, value in narrative_sections:
-            # Section header with light blue background
-            section_header = ParagraphStyle(
-                'SectionHeader',
-                parent=styles['Normal'],
-                fontSize=13,
-                textColor=dark_blue,
-                fontName='Helvetica-Bold',
-                spaceBefore=15,
-                spaceAfter=8
-            )
-            story.append(Paragraph(label, section_header))
+        # Create data for 2x6 grid
+        overview_data = [
+            [Paragraph("<b>Name</b>", label_style), 
+            Paragraph(submission.full_name or 'Not provided', value_style),
+            Paragraph("<b>Industry</b>", label_style),
+            Paragraph(submission.industry or 'Not specified', value_style)],
             
-            # Content in a light blue box
+            [Paragraph("<b>Location</b>", label_style),
+            Paragraph(submission.location or 'Not specified', value_style),
+            Paragraph("<b>Purchase Price</b>", label_style),
+            Paragraph(submission.formatted_purchase_price, value_style)],
+            
+            [Paragraph("<b>Revenue</b>", label_style),
+            Paragraph(submission.formatted_revenue, value_style),
+            Paragraph("<b>Avg SDE</b>", label_style),
+            Paragraph(submission.formatted_avg_sde, value_style)],
+            
+            [Paragraph("<b>Seller Role</b>", label_style),
+            Paragraph(submission.seller_role or 'Not specified', value_style),
+            Paragraph("<b>Reason for Selling</b>", label_style),
+            Paragraph(submission.reason_for_selling or 'Not provided', value_style)],
+            
+            [Paragraph("<b>Owner Involvement</b>", label_style),
+            Paragraph(submission.owner_involvement or 'Not provided', value_style),
+            Paragraph("<b>Customer Concentration Risk</b>", label_style),
+            Paragraph(submission.customer_concentration_risk or 'Not provided', value_style)],
+            
+            [Paragraph("<b>Competition</b>", label_style),
+            Paragraph(submission.deal_competitiveness or 'Not provided', value_style),
+            Paragraph("<b>Seller Note</b>", label_style),
+            Paragraph(submission.seller_note_openness or 'Not provided', value_style)],
+        ]
+        
+        overview_table = Table(overview_data, colWidths=[1.2*inch, 2.2*inch, 1.2*inch, 2.2*inch])
+        overview_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), accent_blue),
+            ('BACKGROUND', (2,0), (2,-1), accent_blue),
+            ('TEXTCOLOR', (0,0), (-1,-1), text_dark),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
+            ('FONTSIZE', (0,0), (-1,-1), 10),
+            ('GRID', (0,0), (-1,-1), 0.5, light_blue),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('LEFTPADDING', (0,0), (-1,-1), 10),
+            ('RIGHTPADDING', (0,0), (-1,-1), 10),
+        ]))
+        story.append(overview_table)
+        story.append(Spacer(1, 30))
+        
+        # Full Width Sections
+        full_width_sections = [
+            ("🎯 Search Narrative Fit", submission.cim_search_narrative_fit or 'Not provided'),
+            ("🔗 Search Narrative Connection", submission.search_narrative_relation or 'Not provided'),
+            ("💡 Deal Interest", submission.deal_likes_dislikes or 'Not provided'),
+            ("❓ Questions/Concerns", submission.deal_questions_concerns or 'Not provided'),
+        ]
+        
+        for section_title, content in full_width_sections:
+            # Section header with blue background
+            header_data = [[Paragraph(section_title, 
+                                    ParagraphStyle('SectionTitle',
+                                                parent=styles['Normal'],
+                                                fontSize=14,
+                                                textColor=colors.white,
+                                                fontName='Helvetica-Bold'))]]
+            
+            section_header_table = Table(header_data, colWidths=[7*inch])
+            section_header_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), primary_blue),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('TOPPADDING', (0,0), (-1,-1), 10),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+                ('LEFTPADDING', (0,0), (-1,-1), 15),
+            ]))
+            story.append(section_header_table)
+            
+            # Content box with light blue background
             content_style = ParagraphStyle(
-                'ContentStyle',
+                'ContentBox',
                 parent=styles['Normal'],
                 fontSize=11,
                 textColor=text_dark,
-                leftIndent=20,
-                rightIndent=20,
-                spaceAfter=15
+                alignment=TA_LEFT,
+                leading=16
             )
-            story.append(Paragraph(value, content_style))
             
-            # Add a subtle separator
-            story.append(Spacer(1, 5))
-
+            content_data = [[Paragraph(content, content_style)]]
+            content_table = Table(content_data, colWidths=[7*inch])
+            content_table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), accent_blue),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                ('TOPPADDING', (0,0), (-1,-1), 15),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 15),
+                ('LEFTPADDING', (0,0), (-1,-1), 15),
+                ('RIGHTPADDING', (0,0), (-1,-1), 15),
+                ('BOX', (0,0), (-1,-1), 1, light_blue),
+            ]))
+            story.append(content_table)
+            story.append(Spacer(1, 20))
+        
         # Professional Footer
         story.append(Spacer(1, 30))
         
@@ -378,36 +392,32 @@ class PDFGenerationService:
             parent=styles['Normal'],
             fontSize=9,
             alignment=TA_CENTER,
-            textColor=text_light,
-            spaceBefore=20
+            textColor=text_medium
         )
         
-        # Footer with light blue line
-        story.append(Paragraph("_" * 80, ParagraphStyle('Line', parent=footer_style, textColor=primary_blue)))
-        story.append(Spacer(1, 10))
-        story.append(Paragraph(f"📊 Professional Analysis by {self.company_name}", footer_style))
-        story.append(Paragraph(f"Report Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}", footer_style))
-        story.append(Paragraph("This report is confidential and prepared for investment analysis purposes.", footer_style))
+        if submission.created_at:
+            footer_text = f"Report Generated: {submission.created_at.strftime('%B %d, %Y at %I:%M %p')}"
+        else:
+            footer_text = f"Report Generated: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+        
+        footer_data = [[Paragraph("_" * 100, ParagraphStyle('Line', parent=footer_style, textColor=light_blue))],
+                    [Paragraph(f"📊 Professional Analysis by {self.company_name}", footer_style)],
+                    [Paragraph(footer_text, footer_style)],
+                    [Paragraph("This report is confidential and prepared for investment analysis purposes.", footer_style)]]
+        
+        footer_table = Table(footer_data, colWidths=[7*inch])
+        footer_table.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('TOPPADDING', (0,0), (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ]))
+        story.append(footer_table)
         
         # Build PDF
         doc.build(story)
         
         return pdf_path
     
-    def _get_table_style(self) -> TableStyle:
-        """Get consistent table styling"""
-        return TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f8f9fa')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#0d6efd')),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ])
 
 # Service instances
 google_drive_service = GoogleDriveService()

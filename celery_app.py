@@ -3,6 +3,10 @@ Simple Celery configuration for Business Acquisition PDF Generator
 """
 from celery import Celery
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Create Celery app
 celery_app = Celery(
