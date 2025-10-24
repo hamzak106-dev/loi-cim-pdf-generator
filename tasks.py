@@ -176,16 +176,7 @@ def send_notifications_task(self, previous_result: dict):
         
         db = SessionLocal()
         submission = db.query(BusinessAcquisition).filter(BusinessAcquisition.id == submission_id).first()
-        
-        # Send admin notification
-        try:
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(email_service.send_admin_notification(submission))
-            loop.close()
-        except Exception as e:
-            print(f"⚠️ Admin notification failed: {e}")
+    
         
         # Send Slack notification
         try:

@@ -20,6 +20,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from fastapi import UploadFile
 from models import BusinessAcquisition
 from config import settings
+import requests
 
 class GoogleDriveService:
     """Service for handling Google Drive file uploads"""
@@ -167,23 +168,182 @@ class SlackService:
         self.webhook_url = settings.SLACK_WEBHOOK_URL
         self.channel = settings.SLACK_CHANNEL
     
-    async def send_notification(self, submission: BusinessAcquisition) -> bool:
+    # async def send_notification(self, submission: BusinessAcquisition) -> bool:
+        # """
+        # Send Slack notification about new submission
+        # This is a placeholder implementation
+        # """
+        # print(f"💬 SLACK NOTIFICATION PLACEHOLDER:")
+        # print(f"   Channel: {self.channel}")
+        # print(f"   Webhook: {self.webhook_url}")
+        # print(f"   Message: 🏢 New Business Acquisition Submission")
+        # print(f"   Submitter: {submission.full_name} ({submission.email})")
+        # print(f"   Purchase Price: {submission.formatted_purchase_price}")
+        # print(f"   Revenue: {submission.formatted_revenue}")
+        # print(f"   Industry: {submission.industry or 'Not specified'}")
+        # print(f"   Location: {submission.location or 'Not specified'}")
+        # print("   (This is a placeholder - implement actual Slack webhook here)")
+        
+        # return True
+        
+    # async def send_notification(self, submission: BusinessAcquisition) -> bool:
+    #     """
+    #     Send Slack notification about new submission
+    #     """
+    #     if not self.webhook_url:
+    #         print("⚠️ Slack webhook URL not configured")
+    #         return False
+
+    #     message = {
+    #         "channel": self.channel,
+    #         "text": "🏢 New Business Acquisition Submission",
+    #         "blocks": [
+    #             {
+    #                 "type": "header",
+    #                 "text": {
+    #                     "type": "plain_text",
+    #                     "text": "🏢 New Business Acquisition Submission",
+    #                     "emoji": True
+    #                 }
+    #             },
+    #             {
+    #                 "type": "section",
+    #                 "fields": [
+    #                     {
+    #                         "type": "mrkdwn",
+    #                         "text": f"*Name:*\n{submission.full_name or 'Not provided'}"
+    #                     },
+    #                     {
+    #                         "type": "mrkdwn",
+    #                         "text": f"*Email:*\n<mailto:{submission.email}|{submission.email}>"
+    #                     },
+    #                     {
+    #                         "type": "mrkdwn",
+    #                         "text": f"*Purchase Price:*\n{submission.formatted_purchase_price or 'Not specified'}"
+    #                     },
+    #                     {
+    #                         "type": "mrkdwn",
+    #                         "text": f"*Revenue:*\n{submission.formatted_revenue or 'Not specified'}"
+    #                     },
+    #                     {
+    #                         "type": "mrkdwn",
+    #                         "text": f"*Industry:*\n{submission.industry or 'Not specified'}"
+    #                     },
+    #                     {
+    #                         "type": "mrkdwn",
+    #                         "text": f"*Location:*\n{submission.location or 'Not specified'}"
+    #                     }
+    #                 ]
+    #             },
+    #             {
+    #                 "type": "actions",
+    #                 "elements": [
+    #                     {
+    #                         "type": "button",
+    #                         "text": {
+    #                             "type": "plain_text",
+    #                             "text": "View Details",
+    #                             "emoji": True
+    #                         },
+    #                         "url": f"https://your-admin-site.com/admin/submissions/{submission.id}"
+    #                     }
+    #                 ]
+    #             }
+    #         ]
+    #     }
+
+    #     try:
+    #         async with aiohttp.ClientSession() as session:
+    #             async with session.post(
+    #                 self.webhook_url,
+    #                 json=message,
+    #                 headers={'Content-Type': 'application/json'}
+    #             ) as response:
+    #                 if response.status == 200:
+    #                     print("✅ Slack notification sent successfully")
+    #                     return True
+    #                 else:
+    #                     error_text = await response.text()
+    #                     print(f"❌ Failed to send Slack notification: {response.status} - {error_text}")
+    #                     return False
+    #     except Exception as e:
+    #         print(f"❌ Error sending Slack notification: {str(e)}")
+    #         return False
+    
+    
+
+    def send_notification(self, submission: BusinessAcquisition) -> bool:
         """
         Send Slack notification about new submission
-        This is a placeholder implementation
         """
-        print(f"💬 SLACK NOTIFICATION PLACEHOLDER:")
-        print(f"   Channel: {self.channel}")
-        print(f"   Webhook: {self.webhook_url}")
-        print(f"   Message: 🏢 New Business Acquisition Submission")
-        print(f"   Submitter: {submission.full_name} ({submission.email})")
-        print(f"   Purchase Price: {submission.formatted_purchase_price}")
-        print(f"   Revenue: {submission.formatted_revenue}")
-        print(f"   Industry: {submission.industry or 'Not specified'}")
-        print(f"   Location: {submission.location or 'Not specified'}")
-        print("   (This is a placeholder - implement actual Slack webhook here)")
+        if not self.webhook_url:
+            print("⚠️ Slack webhook URL not configured")
+            return False
+
+        # Slack message with blocks for better formatting
+        message = {
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "🏢 New Business Acquisition Submission"
+                    }
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Name:*\n{submission.full_name or 'Not provided'}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Email:*\n{submission.email}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Purchase Price:*\n{submission.formatted_purchase_price or 'Not specified'}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Revenue:*\n{submission.formatted_revenue or 'Not specified'}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Industry:*\n{submission.industry or 'Not specified'}"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": f"*Location:*\n{submission.location or 'Not specified'}"
+                        }
+                    ]
+                }
+            ]
+        }
         
-        return True
+        try:
+            response = requests.post(
+                self.webhook_url,
+                json=message,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(response.text,"::::::::::::::::::::::::::")
+                print("✅ Slack notification sent successfully")
+                return True
+            else:
+                print(f"❌ Failed to send Slack notification: {response.status_code} - {response.text}")
+                return False
+                
+        except requests.exceptions.Timeout:
+            print("❌ Slack notification timeout")
+            return False
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error sending Slack notification: {str(e)}")
+            return False
 
 class PDFGenerationService:
     """Service for generating PDF documents"""
