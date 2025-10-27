@@ -28,11 +28,43 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         db.commit()
         print(f"✅ PDF generated: {pdf_path}")
         
-        if files_data:
-            print(f"📁 Processing {len(files_data)} files...")
-            submission.attachment_count = len(files_data)
-            db.commit()
-            print(f"✅ Files processed")
+        uploaded_file_url = None
+        if files_data and len(files_data) > 0:
+            print(f"📁 Processing {len(files_data)} uploaded files...")
+            try:
+                file_info = files_data[0]
+                file_path = file_info.get('file_path')
+                file_name = file_info.get('filename')
+                mime_type = file_info.get('content_type', 'application/octet-stream')
+                
+                if file_path and os.path.exists(file_path):
+                    drive_uploader = create_drive_uploader(
+                        credentials_path=settings.GOOGLE_DRIVE_CREDENTIALS_PATH or "service_account.json",
+                        folder_id=settings.GOOGLE_DRIVE_FOLDER_ID
+                    )
+                    
+                    upload_result = drive_uploader.upload_file(file_path, file_name, mime_type)
+                    uploaded_file_url = upload_result['shareable_url']
+                    
+                    submission.uploaded_file_url = uploaded_file_url
+                    submission.attachment_count = len(files_data)
+                    db.commit()
+                    
+                    print(f"✅ User file uploaded to Google Drive: {file_name}")
+                    print(f"📎 File URL: {uploaded_file_url}")
+                    
+                    try:
+                        os.remove(file_path)
+                        print(f"🗑️ Cleaned up uploaded file")
+                    except Exception as e:
+                        print(f"⚠️ Could not clean up uploaded file: {e}")
+                else:
+                    print(f"⚠️ File path not found or invalid")
+                    
+            except Exception as e:
+                print(f"❌ Failed to upload user file to Drive: {e}")
+                import traceback
+                traceback.print_exc()
         
         drive_url = None
         drive_file_name = f"loi_overview_{submission.full_name.replace(' ', '_')}_{submission.id}.pdf"
@@ -102,7 +134,8 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                     slack_sent = slack_notifier.send_pdf_notification(
                         submission_data=submission_data,
                         drive_url=drive_url,
-                        file_name=drive_file_name
+                        file_name=drive_file_name,
+                        uploaded_file_url=uploaded_file_url
                     )
                 else:
                     print(f"⚠️ No Drive URL available, sending simple notification")

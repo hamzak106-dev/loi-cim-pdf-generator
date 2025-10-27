@@ -25,7 +25,8 @@ class SlackNotifier:
     def send_pdf_notification(self, 
                             submission_data: Dict[str, Any],
                             drive_url: str,
-                            file_name: str) -> bool:
+                            file_name: str,
+                            uploaded_file_url: Optional[str] = None) -> bool:
         """
         Send notification about uploaded PDF to Slack
         
@@ -39,7 +40,7 @@ class SlackNotifier:
         """
         try:
             # Build message payload
-            message = self._build_pdf_message(submission_data, drive_url, file_name)
+            message = self._build_pdf_message(submission_data, drive_url, file_name, uploaded_file_url)
             
             # Send to Slack
             response = requests.post(
@@ -64,19 +65,21 @@ class SlackNotifier:
             return False
     
     def _build_pdf_message(self, 
-                          submission_data: Dict[str, Any],
-                          drive_url: str,
-                          file_name: str) -> dict:
+                       submission_data: Dict[str, Any],
+                       drive_url: str,
+                       file_name: str,
+                       uploaded_file_url: Optional[str] = None) -> dict:
         """
         Build Slack message with blocks for better formatting
-        
+
         Args:
             submission_data: Submission details
             drive_url: Google Drive URL
             file_name: PDF file name
-            
+            uploaded_file_url: Optional URL for the uploaded file
+
         Returns:
-            Slack message payload
+            Slack message payload (dict)
         """
         # Extract data with safe defaults
         full_name = submission_data.get('full_name', 'Unknown')
@@ -85,84 +88,75 @@ class SlackNotifier:
         revenue = submission_data.get('formatted_revenue', 'Not specified')
         industry = submission_data.get('industry', 'Not specified')
         location = submission_data.get('location', 'Not specified')
-        
-        message = {
-            "blocks": [
+
+        # Define message blocks
+        blocks = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain_text",
+                    "text": "📄 New Business Acquisition PDF Generated"
+                }
+            },
+            {
+                "type": "section",
+                "fields": [
+                    {"type": "mrkdwn", "text": f"*Submitter:*\n{full_name}"},
+                    {"type": "mrkdwn", "text": f"*Email:*\n{email}"},
+                    {"type": "mrkdwn", "text": f"*Purchase Price:*\n{purchase_price}"},
+                    {"type": "mrkdwn", "text": f"*Revenue:*\n{revenue}"},
+                    {"type": "mrkdwn", "text": f"*Industry:*\n{industry}"},
+                    {"type": "mrkdwn", "text": f"*Location:*\n{location}"}
+                ]
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*PDF File:* `{file_name}`"
+                }
+            }
+        ]
+
+        # Create action buttons safely
+        action_elements = [
+            {
+                "type": "button",
+                "text": {"type": "plain_text", "text": "📎 View PDF on Google Drive"},
+                "url": drive_url,
+                "style": "primary"
+            }
+        ]
+        if uploaded_file_url:
+            action_elements.append({
+                "type": "button",
+                "text": {"type": "plain_text", "text": "📄 View Uploaded File"},
+                "url": uploaded_file_url
+            })
+
+        blocks.append({
+            "type": "actions",
+            "elements": action_elements
+        })
+
+        # Add footer/context block
+        blocks.append({
+            "type": "context",
+            "elements": [
                 {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "📄 New Business Acquisition PDF Generated",
-                        "emoji": True
-                    }
-                },
-                {
-                    "type": "section",
-                    "fields": [
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Submitter:*\n{full_name}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Email:*\n{email}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Purchase Price:*\n{purchase_price}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Revenue:*\n{revenue}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Industry:*\n{industry}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Location:*\n{location}"
-                        }
-                    ]
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*PDF File:* `{file_name}`"
-                    }
-                },
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {
-                                "type": "plain_text",
-                                "text": "📎 View PDF on Google Drive",
-                                "emoji": True
-                            },
-                            "url": drive_url,
-                            "style": "primary"
-                        }
-                    ]
-                },
-                {
-                    "type": "context",
-                    "elements": [
-                        {
-                            "type": "mrkdwn",
-                            "text": f"Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}"
-                        }
-                    ]
+                    "type": "mrkdwn",
+                    "text": f"Generated at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
                 }
             ]
-        }
-        
-        # Add channel override if specified
-        if self.channel:
+        })
+
+        # Build the final message
+        message = {"blocks": blocks}
+
+        # Include target channel if specified
+        if getattr(self, "channel", None):
             message["channel"] = self.channel
-        
+
         return message
     
     def send_simple_message(self, text: str) -> bool:

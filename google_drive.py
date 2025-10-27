@@ -24,6 +24,56 @@ class GoogleDriveUploader:
             print(f"❌ Google Drive authentication failed: {str(e)}")
             raise
     
+    def upload_file(self, file_path: str, file_name: Optional[str] = None, mime_type: Optional[str] = None) -> dict:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+        
+        if not file_name:
+            file_name = os.path.basename(file_path)
+        
+        if not mime_type:
+            mime_type = 'application/octet-stream'
+        
+        file_metadata = {
+            'name': file_name,
+            'mimeType': mime_type
+        }
+        
+        if self.folder_id:
+            file_metadata['parents'] = [self.folder_id]
+        
+        try:
+            media = MediaFileUpload(
+                file_path,
+                mimetype=mime_type,
+                resumable=True
+            )
+            
+            file = self.service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id, name, webViewLink',
+                supportsAllDrives=True
+            ).execute()
+            
+            file_id = file.get('id')
+            self._make_shareable(file_id)
+            shareable_url = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+            
+            result = {
+                'file_id': file_id,
+                'file_name': file.get('name'),
+                'shareable_url': shareable_url
+            }
+        
+            print(f"✅ File uploaded to Google Drive: {file_name}")
+            print(f"📎 Shareable URL: {shareable_url}")
+            return result
+            
+        except HttpError as error:
+            print(f"❌ Google Drive upload failed: {error}")
+            raise
+    
     def upload_pdf(self, pdf_path: str, file_name: Optional[str] = None) -> dict:
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"PDF file not found: {pdf_path}")

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -6,6 +6,9 @@ from models import BusinessAcquisition
 from services import pdf_service
 from database import get_db
 from tasks import process_submission_complete
+from config import settings
+import os
+import tempfile
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter()
@@ -89,13 +92,29 @@ async def submit_business_acquisition(request: Request, db: Session = Depends(ge
 
         files_data = []
         files = form.getlist('files') if hasattr(form, 'getlist') else ([form.get('files')] if form.get('files') else [])
+        
         for file in files:
             if hasattr(file, 'filename') and file.filename:
-                files_data.append({
-                    'filename': file.filename,
-                    'content_type': getattr(file, 'content_type', 'application/octet-stream'),
-                    'size': getattr(file, 'size', 0)
-                })
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1])
+                temp_path = temp_file.name
+                
+                try:
+                    content = await file.read()
+                    temp_file.write(content)
+                    temp_file.close()
+                    
+                    files_data.append({
+                        'filename': file.filename,
+                        'content_type': getattr(file, 'content_type', 'application/octet-stream'),
+                        'size': len(content),
+                        'file_path': temp_path
+                    })
+                    print(f"📁 Saved uploaded file: {file.filename} to {temp_path}")
+                except Exception as e:
+                    print(f"❌ Error saving file {file.filename}: {e}")
+                    temp_file.close()
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
 
         try:
             process_submission_complete.delay(submission.id, files_data)
