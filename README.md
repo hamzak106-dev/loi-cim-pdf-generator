@@ -1,37 +1,53 @@
-# 🎮 LoI PDF Generator
+# Business Acquisition PDF Generator
 
-<!-- 
+A FastAPI-based application that generates professional Letter of Intent PDFs for business acquisitions, with automated email delivery, Google Drive storage, and Slack notifications.
 
-A FastAPI web application that generates personalized PDF profiles for League of Legends players. Users can fill out a questionnaire about their gaming experience and receive a beautifully formatted PDF document.
+## Features
 
-## ✨ Features
+- 📝 Web form for business acquisition submissions
+- 📄 Professional PDF generation with custom styling
+- 📧 Automated email delivery with PDF attachments
+- ☁️ Google Drive upload (Shared Drive support)
+- 💬 Slack notifications with Drive links
+- ⚡ Background processing with Celery
+- 🗄️ PostgreSQL database storage
 
-- **Modern Web Interface**: Clean, responsive design using Bootstrap
-- **Interactive Forms**: User-friendly questionnaire with LoL-specific fields
-- **PDF Generation**: Creative, visually appealing PDF documents with player information
-- **Database Storage**: PostgreSQL integration to store user submissions
-- **Notification System**: Placeholder implementations for email and Slack notifications
-- **Professional Design**: Bootstrap primary and light color scheme
+## Tech Stack
 
-## 🛠️ Tech Stack
-
-- **Backend**: Python FastAPI
-- **Database**: PostgreSQL
-- **Frontend**: HTML5, Bootstrap 5, CSS3
+- **Backend**: FastAPI, Python 3.11+
+- **Database**: PostgreSQL with SQLAlchemy
+- **Task Queue**: Celery with Redis
 - **PDF Generation**: ReportLab
-- **ORM**: SQLAlchemy
-- **ASGI Server**: Uvicorn
-- **Template Engine**: Jinja2
+- **Email**: SMTP (Gmail)
+- **Cloud Storage**: Google Drive API
+- **Notifications**: Slack Webhooks
 
-## 📋 Prerequisites
+## Project Structure
 
-- Python 3.8+
-- PostgreSQL
-- Virtual environment (recommended)
+```
+lol-pdf-gen/
+├── app.py                  # FastAPI application entry point
+├── views.py                # Route handlers
+├── models.py               # Database models
+├── services.py             # Email, PDF, Slack services
+├── tasks.py                # Celery background tasks
+├── google_drive.py         # Google Drive integration
+├── slack_utils.py          # Slack notification utilities
+├── config.py               # Configuration settings
+├── database.py             # Database connection
+├── celery_app.py           # Celery configuration
+├── templates/              # HTML templates
+│   ├── index.html
+│   └── business_form.html
+├── .env                    # Environment variables
+├── requirements.txt        # Python dependencies
+└── service_account.json    # Google service account credentials
 
-## 🚀 Installation & Setup
+```
 
-### 1. Clone the Repository
+## Installation
+
+### 1. Clone Repository
 ```bash
 git clone <repository-url>
 cd lol-pdf-gen
@@ -48,194 +64,208 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. Database Setup
-
-#### Create PostgreSQL Database
-```sql
--- Connect to PostgreSQL as superuser
-CREATE DATABASE "lol-pdf-db";
-CREATE USER postgres WITH PASSWORD 'root';
-GRANT ALL PRIVILEGES ON DATABASE "lol-pdf-db" TO postgres;
-```
-
-#### Initialize Database Tables
+### 4. Setup PostgreSQL Database
 ```bash
-# Run the database initialization script
-python init_db.py
+createdb lol-pdf-db
 ```
 
-### 5. Environment Configuration
-
-Update the database connection string in `app.py` if needed:
-```python
-DATABASE_URL = "postgresql://postgres:root@localhost/lol-pdf-db"
-```
-
-### 6. Run the Application
+### 5. Configure Environment Variables
+Create a `.env` file:
 ```bash
-# Method 1: Direct execution
-python app.py
+# Database
+DATABASE_URL=postgresql://postgres:root@localhost/lol-pdf-db
 
-# Method 2: Using uvicorn directly
+# Email (Gmail)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+FROM_EMAIL=your-email@gmail.com
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# Google Drive (Shared Drive)
+GOOGLE_DRIVE_FOLDER_ID=your-shared-drive-folder-id
+GOOGLE_DRIVE_CREDENTIALS_PATH=service_account.json
+
+# Slack
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+SLACK_CHANNEL=#business-submissions
+
+# Application
+DEBUG=True
+HOST=0.0.0.0
+PORT=8000s
+SECRET_KEY=your-secret-key-change-in-production
+```
+
+### 6. Google Drive Setup
+1. Create a Google Cloud project
+2. Enable Google Drive API
+3. Create a service account
+4. Download `service_account.json` to project root
+5. Create a Shared Drive folder
+6. Share folder with service account email
+7. Copy folder ID to `.env`
+
+### 7. Slack Setup
+1. Create a Slack app
+2. Enable Incoming Webhooks
+3. Add webhook to your channel
+4. Copy webhook URL to `.env`
+
+## Running the Application
+
+### Start Services
+
+**Terminal 1 - Redis:**
+```bash
+redis-server
+```
+
+**Terminal 2 - Celery Worker:**
+```bash
+celery -A celery_app.celery_app worker --loglevel=info
+```
+
+**Terminal 3 - FastAPI:**
+```bash
 uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The application will be available at `http://localhost:8000`
+### Access Application
+- Web Interface: `http://localhost:8000`
+- Business Form: `http://localhost:8000/business-form`
+- API Health: `http://localhost:8000/health`
 
-## 📱 Usage
+## Workflow
 
-1. **Home Page**: Visit the main page and click "LoL Questions"
-2. **Fill Form**: Complete the questionnaire with your League of Legends information
-   - **Required**: Name and Email
-   - **Optional**: Favorite Champion, Rank, Main Role, Years Playing
-3. **Generate PDF**: Submit the form to automatically generate and download your personalized PDF
-4. **Notifications**: Email and Slack notifications are sent (currently placeholders)
+1. **User submits form** → Data saved to PostgreSQL
+2. **Celery task starts** → Background processing begins
+3. **PDF generated** → Professional Letter of Intent created
+4. **Upload to Google Drive** → PDF stored in Shared Drive
+5. **Email sent** → PDF attached to confirmation email
+6. **Slack notification** → Team notified with Drive link
+7. **Cleanup** → Temporary files removed
 
-## 🗄️ Database Models
+## API Endpoints
 
-### LoLQuestion
-- `id`: Primary key
-- `name`: Player name (required)
-- `email`: Email address (required)
-- `favorite_champion`: Favorite LoL champion
-- `rank`: Current game rank
-- `main_role`: Primary game role
-- `years_playing`: Years of experience
-- `created_at`: Submission timestamp
+### Pages
+- `GET /` - Home page
+- `GET /business-form` - Submission form
+- `POST /submit-business` - Handle form submission
 
-### CIMQuestion
-- `id`: Primary key
-- `name`: User name (required)
-- `email`: Email address (required)
-- `company`: Company name
-- `position`: Job position
-- `experience_years`: Professional experience
-- `created_at`: Submission timestamp
+### API
+- `GET /api/submissions` - List all submissions
+- `GET /api/submissions/{id}` - Get specific submission
+- `GET /api/submissions/{id}/pdf` - Regenerate PDF
+- `GET /health` - Health check
 
-## 📄 PDF Features
+## Testing
 
-The generated PDFs include:
-- **Creative Design**: Modern layout with Bootstrap color scheme
-- **Player Information**: Name, email, submission date
-- **Game Statistics**: Champion, rank, role, experience
-- **Visual Elements**: Icons, tables, and professional formatting
-- **Responsive Layout**: Optimized for printing and digital viewing
-
-## 🔧 Configuration
-
-### Database Configuration
-Update the connection string in `app.py`:
-```python
-DATABASE_URL = "postgresql://username:password@host:port/database"
-```
-
-### Environment Variables
-For production, use environment variables:
+### Verify Setup
 ```bash
-export DATABASE_URL="postgresql://username:password@host:port/database"
+python verify_setup.py
 ```
 
-## 📧 Notification Setup
-
-### Email Notifications
-Replace the placeholder in `send_email_notification()` with actual email service:
-- SMTP configuration
-- Email templates
-- Error handling
-
-### Slack Notifications
-Replace the placeholder in `send_slack_notification()` with:
-- Slack webhook URL
-- Channel configuration
-- Message formatting
-
-## 🎨 Customization
-
-### Styling
-- Modify `templates/base.html` for global styles
-- Update Bootstrap variables in CSS
-- Customize PDF styling in `generate_lol_pdf()`
-
-### Form Fields
-- Add new fields to the SQLAlchemy models in `app.py`
-- Update HTML forms in `templates/lol_form.html`
-- Update the FastAPI endpoint parameters
-- Modify PDF generation to include new fields
-
-## 📁 Project Structure
-
+Expected output:
 ```
-lol-pdf-gen/
-├── app.py                 # Main FastAPI application
-├── requirements.txt       # Python dependencies
-├── README.md             # Project documentation
-├── .gitignore           # Git ignore rules
-├── templates/           # HTML templates
-│   ├── base.html        # Base template
-│   ├── index.html       # Home page
-│   └── lol_form.html    # Form page
-├── static/              # Static assets
-│   └── assets/          # Bootstrap files
-│       ├── css/         # CSS files
-│       └── js/          # JavaScript files
-└── venv/               # Virtual environment
+✅ Environment Config: OK
+✅ Google Drive: OK
+✅ Slack: OK
+🎉 All systems ready\!
 ```
 
-## 🐛 Troubleshooting
+### Test Submission
+1. Navigate to `http://localhost:0/business-form`
+2. Fill out the form
+3. Submit
+4. Check Celery logs for processing status
+5. Verify email received
+6. Check Google Drive for PDF
+7. Check Slack for notification
 
-### Database Connection Issues
-- Verify PostgreSQL is running
-- Check database credentials in `DATABASE_URL`
-- Ensure database exists
-- Run `python init_db.py` to create tables
+## Configuration
 
-### PDF Generation Errors
-- Verify ReportLab installation
-- Check file permissions for temporary files
-- Ensure sufficient disk space
+### Email Settings
+- Uses Gmail SMTP by default
+- Requires app-specific password
+- Supports TLS encryption
 
-### FastAPI Issues
-- Ensure all dependencies are installed: `pip install -r requirements.txt`
-- Check if port 8000 is available
-- Verify uvicorn is installed
+### Google Drive
+- Uses service account authentication
+- Supports Shared Drives with `supportsAllDrives=True`
+- Generates shareable links automatically
 
-### Bootstrap Assets
-- Verify Bootstrap files exist in `static/assets/`
-- Check static file mounting in FastAPI
-- Ensure proper CSS/JS linking
+### Slack
+- Rich formatted messages with blocks
+- Includes submission details
+- Clickable Drive link button
 
-## 🤝 Contributing
+## Troubleshooting
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+### Google Drive Upload Fails
+- Verify `service_account.json` exists
+- Check folder is shared with service account
+- Ensure `GOOGLE_DRIVE_FOLDER_ID` is correct
+- Confirm Shared Drive permissions
 
-## 📝 License
+### Email Not Sending
+- Verify SMTP credentials
+- Check app password (not regular password)
+- Ensure "Less secure apps" enabled (if applicable)
 
-This project is open source and available under the [MIT License](LICENSE).
+### Celery Task Not Running
+- Confirm Redis is running: `redis-cli ping`
+- Check Celery worker is started
+- Review Celery logs for errors
 
-## 🎯 Future Enhancements
+### Slack Notification Fails
+- Verify webhook URL is correct
+- Test webhook: `curl -X POST -H 'Content-type: application/json' --data '{"text":"Test"}' YOUR_WEBHOOK_URL`
+- Check channel permissions
 
-- [ ] User authentication system
-- [ ] Multiple questionnaire types
-- [ ] PDF template customization
-- [ ] Email service integration
-- [ ] Slack webhook implementation
-- [ ] File upload capabilities
-- [ ] Admin dashboard
-- [ ] API endpoints
-- [ ] Docker containerization
-- [ ] Unit tests
+## Development
 
-## 📞 Support
+### Database Migrations
+```bash
+# Create migration
+alembic revision --autogenerate -m "description"
 
-For support and questions:
-- Create an issue in the repository
-- Check the troubleshooting section
-- Review the Flask and PostgreSQL documentation
+# Apply migration
+alembic upgrade head
+```
 
----
+### Code Style
+- Follow PEP 8
+- Use type hints
+- Keep functions focused and simple
+- Minimal comments, self-documenting code
 
-**Happy Gaming! 🎮** -->
+## Production Deployment
+
+### Security Checklist
+- [ ] Change `SECRET_KEY`
+- [ ] Set `DEBUG=False`
+- [ ] Use environment variables for all secrets
+- [ ] Enable HTTPS
+- [ ] Restrict CORS origins
+- [ ] Use production-grade database
+- [ ] Configure proper logging
+- [ ] Set up monitoring
+
+### Performance
+- Use Gunicorn/Uvicorn workers
+- Configure Celery concurrency
+- Enable Redis persistence
+- Optimize database queries
+- Implement caching
+
+## License
+
+MIT License
+
+## Support
+
+For issues or questions, please open an issue on GitHub.
