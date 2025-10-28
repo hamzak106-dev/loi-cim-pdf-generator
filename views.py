@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -6,7 +6,6 @@ from models import LOIQuestion, CIMQuestion, BusinessAcquisition
 from services import pdf_service
 from database import get_db
 from tasks import process_submission_complete
-from config import settings
 import os
 import tempfile
 
@@ -27,12 +26,6 @@ async def business_form_page(request: Request):
         "page_title": "LOI Questions"
     })
     
-@router.get("/cim-form", response_class=HTMLResponse)
-async def cim_form_page(request: Request):
-    return templates.TemplateResponse("cim_questions.html", {
-        "request": request,
-        "page_title": "CIM Questions"
-    })
 
 @router.post("/submit-business")
 async def submit_business_acquisition(request: Request, db: Session = Depends(get_db)):
@@ -269,37 +262,3 @@ async def submit_cim_questions(request: Request, db: Session = Depends(get_db)):
             "form_data": {}
         })
 
-@router.get("/api/submissions")
-async def get_submissions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    submissions = db.query(BusinessAcquisition).offset(skip).limit(limit).all()
-    return {
-        "submissions": [submission.to_dict() for submission in submissions],
-        "total": db.query(BusinessAcquisition).count()
-    }
-
-@router.get("/api/submissions/{submission_id}")
-async def get_submission(submission_id: int, db: Session = Depends(get_db)):
-    submission = db.query(BusinessAcquisition).filter(BusinessAcquisition.id == submission_id).first()
-    if not submission:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    return submission.to_dict()
-
-@router.get("/api/submissions/{submission_id}/pdf")
-async def regenerate_pdf(submission_id: int, db: Session = Depends(get_db)):
-    submission = db.query(BusinessAcquisition).filter(BusinessAcquisition.id == submission_id).first()
-    if not submission:
-        raise HTTPException(status_code=404, detail="Submission not found")
-    pdf_path = pdf_service.generate_business_acquisition_pdf(submission)
-    return FileResponse(
-        pdf_path,
-        media_type='application/pdf',
-        filename=f'business_acquisition_{submission.full_name.replace(" ", "_")}_{submission.id}.pdf'
-    )
-
-@router.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "service": "Business Acquisition PDF Generator",
-        "version": "2.0.0"
-    }
