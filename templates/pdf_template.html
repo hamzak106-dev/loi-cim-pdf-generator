@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ form_type }} Overview - {{ submission.full_name }}</title>
+    <style>
+        {% include 'pdf_styles.css' %}
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="pdf-header">
+        <h1>{{ form_type }} Overview</h1>
+        <p>Professional Investment Opportunity Report</p>
+    </div>
+
+    <!-- Business Overview Section -->
+    <div class="section-header">📊 Business Overview</div>
+    
+    <table class="overview-table">
+        {% for i in range(0, fields|length, 2) %}
+        <tr>
+            {% for j in range(2) %}
+                {% set idx = i + j %}
+                {% if idx < fields|length %}
+                    {% set field = fields[idx] %}
+                    {% set label = field[0] %}
+                    {% set attr_name = field[1] %}
+                    {% set default = field[2] %}
+                    {% set value = submission[attr_name] if submission[attr_name] else default %}
+                    
+                    <td class="label">{{ label }}</td>
+                    <td class="value">{{ value }}</td>
+                {% else %}
+                    <td class="label"></td>
+                    <td class="value"></td>
+                {% endif %}
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+
+    <!-- Narrative Sections -->
+    {% for section in narrative_sections %}
+        {% set section_title = section[0] %}
+        {% set attr_name = section[1] %}
+        {% set content = submission[attr_name] if submission[attr_name] else 'Not provided' %}
+        
+        <div class="narrative-section no-break">
+            <div class="narrative-header">{{ section_title }}</div>
+            <div class="narrative-content">{{ content }}</div>
+        </div>
+    {% endfor %}
+
+    <!-- Footer -->
+    <div class="pdf-footer">
+        <div class="company-name">📊 Professional Analysis by {{ company_name }}</div>
+        <div class="timestamp">Report Generated: {{ timestamp }}</div>
+        <div class="disclaimer">This report is confidential and prepared for investment analysis purposes.</div>
+    </div>
+</body>
+</html>

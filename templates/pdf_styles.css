@@ -1,0 +1,155 @@
+/* PDF-specific styles for WeasyPrint */
+
+@page {
+    size: letter;
+    margin: 0.5in;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 11pt;
+    color: #2C3E50;
+    line-height: 1.6;
+}
+
+/* Header Section */
+.pdf-header {
+    background: linear-gradient(135deg, #1B62CF 0%, #4A8FE7 100%);
+    color: white;
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 3px solid #4A8FE7;
+}
+
+.pdf-header h1 {
+    font-size: 32pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.pdf-header p {
+    font-size: 14pt;
+    margin: 0;
+}
+
+/* Section Headers */
+.section-header {
+    font-size: 16pt;
+    color: #1B62CF;
+    font-weight: bold;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #E8F1FC;
+}
+
+/* Overview Table */
+.overview-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+}
+
+.overview-table td {
+    padding: 10px;
+    border: 1px solid #4A8FE7;
+}
+
+.overview-table td.label {
+    background-color: #E8F1FC;
+    color: #1B62CF;
+    font-weight: bold;
+    width: 25%;
+    font-size: 10pt;
+}
+
+.overview-table td.value {
+    background-color: white;
+    color: #2C3E50;
+    width: 25%;
+    font-size: 11pt;
+}
+
+/* Narrative Sections */
+.narrative-section {
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+}
+
+.narrative-header {
+    background-color: #1B62CF;
+    color: white;
+    padding: 10px 15px;
+    font-size: 14pt;
+    font-weight: bold;
+    margin-bottom: 0;
+}
+
+.narrative-content {
+    background-color: #E8F1FC;
+    padding: 15px;
+    border: 1px solid #4A8FE7;
+    border-top: none;
+    color: #2C3E50;
+    font-size: 11pt;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Footer */
+.pdf-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid #4A8FE7;
+    text-align: center;
+    font-size: 9pt;
+    color: #5D6D7E;
+}
+
+.pdf-footer .company-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.pdf-footer .timestamp {
+    margin-bottom: 5px;
+}
+
+.pdf-footer .disclaimer {
+    font-style: italic;
+    margin-top: 10px;
+}
+
+/* Utility Classes */
+.text-center {
+    text-align: center;
+}
+
+.text-muted {
+    color: #5D6D7E;
+}
+
+.mb-0 {
+    margin-bottom: 0;
+}
+
+.mt-3 {
+    margin-top: 15px;
+}
+
+/* Page breaks */
+.page-break {
+    page-break-after: always;
+}
+
+.no-break {
+    page-break-inside: avoid;
+}

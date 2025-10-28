@@ -4,7 +4,7 @@ python-multipart==0.0.6
 jinja2==3.1.2
 aiofiles==23.2.1
 psycopg2-binary==2.9.7
-reportlab==4.0.4
+weasyprint==60.1
 SQLAlchemy==2.0.21
 python-dotenv==1.0.0
 typing_extensions==4.8.0

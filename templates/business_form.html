@@ -101,10 +101,13 @@
                 </div>
                 
                 <div class="row g-3 mt-1">
-                  <div class="col-md-6">
+                  <div class="col-md-12">
                     <label for="owner_involvement" class="form-label fw-semibold">Owner Involvement (high-level role description, hours per week, etc.)</label>
-                    <input type="text" class="form-control form-control-lg" id="owner_involvement" name="owner_involvement"  value="{{ form_data.owner_involvement if form_data else '' }}">
+                    <textarea class="form-control" id="owner_involvement" name="owner_involvement" rows="3">{{ form_data.owner_involvement if form_data else '' }}</textarea>
                   </div>
+                </div>
+
+                <div class="row g-3 mt-1">
                   <div class="col-md-6">
                     <label for="customer_concentration_risk" class="form-label fw-semibold">Customer Concentration Risk</label>
                     <input type="text" class="form-control form-control-lg" id="customer_concentration_risk" name="customer_concentration_risk"  value="{{ form_data.customer_concentration_risk if form_data else '' }}">
@@ -135,17 +138,26 @@
                 <h5 class="border-bottom pb-2 mb-4">Additional Questions</h5>
                 
                 <div class="mb-4">
-                  <label for="search_narrative_relation" class="form-label fw-semibold">1. How does this relate to your search narrative?</label>
+                  <label for="cim_search_narrative_fit" class="form-label fw-semibold">Does the CIM fit your Search Narrative & your Search Narrative Question Guide?</label>
+                  <select class="form-select form-select-lg" id="cim_search_narrative_fit" name="cim_search_narrative_fit" onchange="toggleSearchNarrative()">
+                    <option value="">Select...</option>
+                    <option value="Yes" {{ 'selected' if form_data and form_data.cim_search_narrative_fit == 'Yes' else '' }}>Yes</option>
+                    <option value="No" {{ 'selected' if form_data and form_data.cim_search_narrative_fit == 'No' else '' }}>No</option>
+                  </select>
+                </div>
+
+                <div class="mb-4" id="search_narrative_section" style="display: {{ 'block' if form_data and form_data.cim_search_narrative_fit == 'Yes' else 'none' }};">
+                  <label for="search_narrative_relation" class="form-label fw-semibold">How does this relate to your search narrative?</label>
                   <textarea class="form-control" id="search_narrative_relation" name="search_narrative_relation" rows="4">{{ form_data.search_narrative_relation if form_data else '' }}</textarea>
                 </div>
 
                 <div class="mb-4">
-                  <label for="deal_likes_dislikes" class="form-label fw-semibold">2. What do you like/don't like about the deal?</label>
+                  <label for="deal_likes_dislikes" class="form-label fw-semibold">What do you like/don't like about the deal?</label>
                   <textarea class="form-control" id="deal_likes_dislikes" name="deal_likes_dislikes" rows="4" >{{ form_data.deal_likes_dislikes if form_data else '' }}</textarea>
                 </div>
 
                 <div class="mb-4">
-                  <label for="deal_questions_concerns" class="form-label fw-semibold">3. What questions/concerns do you have about the deal?</label>
+                  <label for="deal_questions_concerns" class="form-label fw-semibold">What questions/concerns do you have about the deal?</label>
                   <textarea class="form-control" id="deal_questions_concerns" name="deal_questions_concerns" rows="4">{{ form_data.deal_questions_concerns if form_data else '' }}</textarea>
                 </div>
               </div>
@@ -187,4 +199,22 @@
   </div>
 {% endblock %}
 
-{% block scripts %}{% endblock %}
+{% block scripts %}
+<script>
+function toggleSearchNarrative() {
+  const select = document.getElementById('cim_search_narrative_fit');
+  const section = document.getElementById('search_narrative_section');
+  
+  if (select.value === 'Yes') {
+    section.style.display = 'block';
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  toggleSearchNarrative();
+});
+</script>
+{% endblock %}
