@@ -1,5 +1,5 @@
 """
-Simple Celery configuration for Business Acquisition PDF Generator
+Simple Celery configuration for LOI Questions PDF Generator
 """
 from celery import Celery
 import os
