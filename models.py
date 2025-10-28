@@ -46,7 +46,8 @@ class BusinessAcquisition(Base):
     deal_questions_concerns = Column(Text, nullable=True, comment="What questions/concerns do you have about the deal?")
     
     # File Upload Fields
-    file_urls = Column(Text, nullable=True, comment="JSON array of uploaded file URLs from Google Drive")
+    file_urls = Column(Text, nullable=True, comment="Google Drive URL for generated PDF")
+    uploaded_file_url = Column(Text, nullable=True, comment="Google Drive URL for user-uploaded attachment")
     attachment_count = Column(Integer, default=0, comment="Number of files attached")
     
     # Terms and Conditions

@@ -1,287 +1,171 @@
-"""
-URL routes and endpoints for Business Acquisition PDF Generator
-"""
-import json
-from typing import List, Optional
-from fastapi import APIRouter, Request, Form, File, UploadFile, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from models import BusinessAcquisition, validate_business_acquisition_data
-from services import google_drive_service, email_service, slack_service, pdf_service
+from models import BusinessAcquisition
+from services import pdf_service
 from database import get_db
+from tasks import process_submission_complete
+from config import settings
+import os
+import tempfile
 
-# Initialize templates
 templates = Jinja2Templates(directory="templates")
-
-# Create router
 router = APIRouter()
 
-# ============================================================================
-# MAIN PAGES
-# ============================================================================
-
-@router.get("/", response_class=HTMLResponse, tags=["Pages"])
+@router.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
-    """
-    Display the main landing page
-    """
     return templates.TemplateResponse("index.html", {
         "request": request,
         "page_title": "Business Acquisition Services"
     })
 
-@router.get("/business-form", response_class=HTMLResponse, tags=["Pages"])
+@router.get("/business-form", response_class=HTMLResponse)
 async def business_form_page(request: Request):
-    """
-    Display the business acquisition form page
-    """
     return templates.TemplateResponse("business_form.html", {
         "request": request,
         "page_title": "Business Acquisition Form"
     })
 
-# ============================================================================
-# FORM SUBMISSION ENDPOINTS
-# ============================================================================
-
-@router.post("/submit-business", tags=["Submissions"])
-async def submit_business_acquisition(
-    request: Request,
-    # Required fields
-    full_name: str = Form(..., description="Full name of the submitter"),
-    email: str = Form(..., description="Email address for communication"),
-    purchase_price: float = Form(..., description="Proposed purchase price"),
-    revenue: float = Form(..., description="Annual revenue of the business"),
-    
-    # Optional text fields
-    industry: Optional[str] = Form(None, description="Industry sector"),
-    location: Optional[str] = Form(None, description="Business location"),
-    seller_role: Optional[str] = Form(None, description="Seller's role in business"),
-    avg_sde: Optional[float] = Form(None, description="Average Seller's Discretionary Earnings"),
-    
-    # Text area fields
-    reason_for_selling: Optional[str] = Form(None, description="Reason for selling the business"),
-    owner_involvement: Optional[str] = Form(None, description="Owner involvement details"),
-    customer_concentration_risk: Optional[str] = Form(None, description="Customer concentration analysis"),
-    deal_competitiveness: Optional[str] = Form(None, description="Deal competitiveness assessment"),
-    seller_note_openness: Optional[str] = Form(None, description="Seller financing considerations"),
-    
-    # New search narrative fields
-    cim_search_narrative_fit: Optional[str] = Form(None, description="CIM fit with search narrative"),
-    search_narrative_relation: Optional[str] = Form(None, description="Relation to search narrative"),
-    deal_likes_dislikes: Optional[str] = Form(None, description="Deal likes and dislikes"),
-    deal_questions_concerns: Optional[str] = Form(None, description="Questions and concerns about deal"),
-    
-    # Terms and conditions
-    terms_accepted: bool = Form(..., description="Terms and conditions acceptance"),
-    
-    # File uploads
-    files: List[UploadFile] = File(default=[], description="Supporting documents"),
-    
-    # Database session
-    db: Session = Depends(get_db)
-):
-    """
-    Handle business acquisition form submission
-    
-    This endpoint:
-    1. Validates the submitted data
-    2. Saves the submission to the database
-    3. Uploads files to Google Drive
-    4. Generates a PDF report
-    5. Sends confirmation email
-    6. Sends Slack notification
-    """
+@router.post("/submit-business")
+async def submit_business_acquisition(request: Request, db: Session = Depends(get_db)):
     try:
-        # Prepare data for validation
-        form_data = {
-            'full_name': full_name,
-            'email': email,
-            'purchase_price': purchase_price,
-            'revenue': revenue,
-            'industry': industry,
-            'location': location,
-            'seller_role': seller_role,
-            'avg_sde': avg_sde,
-            'reason_for_selling': reason_for_selling,
-            'owner_involvement': owner_involvement,
-            'customer_concentration_risk': customer_concentration_risk,
-            'deal_competitiveness': deal_competitiveness,
-            'seller_note_openness': seller_note_openness,
-            'cim_search_narrative_fit': cim_search_narrative_fit,
-            'search_narrative_relation': search_narrative_relation,
-            'deal_likes_dislikes': deal_likes_dislikes,
-            'deal_questions_concerns': deal_questions_concerns,
-            'terms_accepted': terms_accepted
-        }
-        
-        # Check terms acceptance
-        if not terms_accepted:
+        form = await request.form()
+        full_name = (form.get('full_name') or '').strip()
+        email = (form.get('email') or '').strip().lower()
+        industry = (form.get('industry') or '').strip() or None
+        location = (form.get('location') or '').strip() or None
+        seller_role = (form.get('seller_role') or '').strip() or None
+        reason_for_selling = (form.get('reason_for_selling') or '').strip() or None
+        owner_involvement = (form.get('owner_involvement') or '').strip() or None
+        customer_concentration_risk = (form.get('customer_concentration_risk') or '').strip() or None
+        deal_competitiveness = (form.get('deal_competitiveness') or '').strip() or None
+        seller_note_openness = (form.get('seller_note_openness') or '').strip() or None
+        cim_search_narrative_fit = (form.get('cim_search_narrative_fit') or '').strip() or None
+        search_narrative_relation = (form.get('search_narrative_relation') or '').strip() or None
+        deal_likes_dislikes = (form.get('deal_likes_dislikes') or '').strip() or None
+        deal_questions_concerns = (form.get('deal_questions_concerns') or '').strip() or None
+
+        def to_float(val):
+            try:
+                return float(val) if val not in (None, '') else None
+            except Exception:
+                return None
+
+        purchase_price = to_float(form.get('purchase_price'))
+        revenue = to_float(form.get('revenue'))
+        avg_sde = to_float(form.get('avg_sde'))
+        terms_raw = form.get('terms_accepted')
+        terms_accepted = True if str(terms_raw).lower() in ['on', 'true', '1', 'yes'] else False
+
+        if not full_name or not email:
             return templates.TemplateResponse("business_form.html", {
                 "request": request,
-                "error": "You must accept the terms and conditions to proceed.",
-                "form_data": form_data
+                "error": "Please fill required fields and accept terms.",
+                "form_data": {k: form.get(k) for k in form.keys()}
             })
-        
-        # Validate form data
-        is_valid, validation_errors = validate_business_acquisition_data(form_data)
-        if not is_valid:
-            return templates.TemplateResponse("business_form.html", {
-                "request": request,
-                "error": "Please correct the following errors: " + "; ".join(validation_errors),
-                "form_data": form_data
-            })
-        
-        # Create database entry
+
         submission = BusinessAcquisition(
-            full_name=full_name.strip(),
-            email=email.strip().lower(),
-            industry=industry.strip() if industry else None,
-            location=location.strip() if location else None,
-            seller_role=seller_role.strip() if seller_role else None,
-            purchase_price=purchase_price,
-            revenue=revenue,
+            full_name=full_name,
+            email=email,
+            industry=industry,
+            location=location,
+            seller_role=seller_role,
+            purchase_price=purchase_price or 0.0,
+            revenue=revenue or 0.0,
             avg_sde=avg_sde,
-            reason_for_selling=reason_for_selling.strip() if reason_for_selling else None,
-            owner_involvement=owner_involvement.strip() if owner_involvement else None,
-            customer_concentration_risk=customer_concentration_risk.strip() if customer_concentration_risk else None,
-            deal_competitiveness=deal_competitiveness.strip() if deal_competitiveness else None,
-            seller_note_openness=seller_note_openness.strip() if seller_note_openness else None,
-            cim_search_narrative_fit=cim_search_narrative_fit.strip() if cim_search_narrative_fit else None,
-            search_narrative_relation=search_narrative_relation.strip() if search_narrative_relation else None,
-            deal_likes_dislikes=deal_likes_dislikes.strip() if deal_likes_dislikes else None,
-            deal_questions_concerns=deal_questions_concerns.strip() if deal_questions_concerns else None,
+            reason_for_selling=reason_for_selling,
+            owner_involvement=owner_involvement,
+            customer_concentration_risk=customer_concentration_risk,
+            deal_competitiveness=deal_competitiveness,
+            seller_note_openness=seller_note_openness,
+            cim_search_narrative_fit=cim_search_narrative_fit,
+            search_narrative_relation=search_narrative_relation,
+            deal_likes_dislikes=deal_likes_dislikes,
+            deal_questions_concerns=deal_questions_concerns,
             terms_accepted=terms_accepted,
-            attachment_count=len([f for f in files if f.filename])
         )
-        
-        # Save to database
+
         db.add(submission)
         db.commit()
         db.refresh(submission)
+
+        files_data = []
+        files = form.getlist('files') if hasattr(form, 'getlist') else ([form.get('files')] if form.get('files') else [])
         
-        # Handle file uploads
-        file_urls = []
-        if files and any(f.filename for f in files):
-            # Validate files
-            for file in files:
-                if file.filename:  # Skip empty files
-                    is_valid_file, file_error = google_drive_service.validate_file(file)
-                    if not is_valid_file:
-                        db.rollback()
-                        return templates.TemplateResponse("business_form.html", {
-                            "request": request,
-                            "error": f"File validation error: {file_error}",
-                            "form_data": form_data
-                        })
-            
-            # Upload files to Google Drive
-            file_urls = await google_drive_service.upload_multiple_files(files, submission.id)
-            
-            # Update submission with file URLs
-            submission.file_urls = json.dumps(file_urls)
-            db.commit()
-        
-        # Generate PDF
-        pdf_path = pdf_service.generate_business_acquisition_pdf(submission)
-        submission.pdf_generated = True
-        
-        # Send confirmation email
-        email_sent = await email_service.send_confirmation_email(submission)
-        submission.email_sent = email_sent
-        
-        # Send admin notification
-        await email_service.send_admin_notification(submission)
-        
-        # Send Slack notification
-        await slack_service.send_notification(submission)
-        
-        # Mark as processed
-        submission.is_processed = True
-        db.commit()
-        
-        # Return the generated PDF
-        return FileResponse(
-            pdf_path,
-            media_type='application/pdf',
-            filename=f'business_acquisition_{submission.full_name.replace(" ", "_")}_{submission.id}.pdf'
-        )
-        
+        for file in files:
+            if hasattr(file, 'filename') and file.filename:
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1])
+                temp_path = temp_file.name
+                
+                try:
+                    content = await file.read()
+                    temp_file.write(content)
+                    temp_file.close()
+                    
+                    files_data.append({
+                        'filename': file.filename,
+                        'content_type': getattr(file, 'content_type', 'application/octet-stream'),
+                        'size': len(content),
+                        'file_path': temp_path
+                    })
+                    print(f"📁 Saved uploaded file: {file.filename} to {temp_path}")
+                except Exception as e:
+                    print(f"❌ Error saving file {file.filename}: {e}")
+                    temp_file.close()
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+
+        try:
+            process_submission_complete.delay(submission.id, files_data)
+            print(f"🚀 Started background processing for submission {submission.id}")
+        except Exception as e:
+            print(f"⚠️ Failed to start background tasks: {e}")
+
+        return templates.TemplateResponse("business_form.html", {
+            "request": request,
+            "success": f"Thank you {submission.full_name}\! Your submission has been received. Your business acquisition analysis report will be sent to {submission.email} shortly.",
+            "form_data": {}
+        })
+
     except Exception as e:
         db.rollback()
         print(f"Error processing submission: {str(e)}")
         return templates.TemplateResponse("business_form.html", {
             "request": request,
-            "error": f"An error occurred while processing your submission: {str(e)}",
-            "form_data": form_data if 'form_data' in locals() else {}
+            "error": "An error occurred while processing your submission.",
+            "form_data": {}
         })
 
-# ============================================================================
-# API ENDPOINTS (for future use)
-# ============================================================================
-
-@router.get("/api/submissions", tags=["API"])
-async def get_submissions(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """
-    Get list of business acquisition submissions (API endpoint)
-    """
+@router.get("/api/submissions")
+async def get_submissions(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     submissions = db.query(BusinessAcquisition).offset(skip).limit(limit).all()
     return {
         "submissions": [submission.to_dict() for submission in submissions],
         "total": db.query(BusinessAcquisition).count()
     }
 
-@router.get("/api/submissions/{submission_id}", tags=["API"])
-async def get_submission(
-    submission_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Get specific business acquisition submission (API endpoint)
-    """
+@router.get("/api/submissions/{submission_id}")
+async def get_submission(submission_id: int, db: Session = Depends(get_db)):
     submission = db.query(BusinessAcquisition).filter(BusinessAcquisition.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
-    
     return submission.to_dict()
 
-@router.get("/api/submissions/{submission_id}/pdf", tags=["API"])
-async def regenerate_pdf(
-    submission_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Regenerate PDF for a specific submission (API endpoint)
-    """
+@router.get("/api/submissions/{submission_id}/pdf")
+async def regenerate_pdf(submission_id: int, db: Session = Depends(get_db)):
     submission = db.query(BusinessAcquisition).filter(BusinessAcquisition.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
-    
-    # Generate new PDF
     pdf_path = pdf_service.generate_business_acquisition_pdf(submission)
-    
     return FileResponse(
         pdf_path,
         media_type='application/pdf',
         filename=f'business_acquisition_{submission.full_name.replace(" ", "_")}_{submission.id}.pdf'
     )
 
- 
-
-# ============================================================================
-# HEALTH CHECK
-# ============================================================================
-
-@router.get("/health", tags=["System"])
+@router.get("/health")
 async def health_check():
-    """
-    Health check endpoint
-    """
     return {
         "status": "healthy",
         "service": "Business Acquisition PDF Generator",
