@@ -3,25 +3,54 @@
 {% block title %}Business Acquisition Services - Home{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center align-items-center min-vh-100">
-            <div class="col-lg-6 col-md-8">
-                <div class="card">
-                    <div class="card-header text-center">
-                        <h1>🏢 Business Acquisition Services</h1>
-                    </div>
-                    
-                    <div class="card-body p-5 text-center">
-                        <h3 class="mb-5">Welcome!</h3>
-                        
+<style>
+    .container{
+        width:100% !important;
+        max-width:100% !important;
+        padding:0 !important;
+    }
+    .container-fluid {
+  min-height: 100vh;
+  background-color: #000;
+  background-image:
+    radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.2), transparent 70%),
+    radial-gradient(circle at top left, rgba(13, 56, 114, 0.3), transparent 70%),
+    radial-gradient(circle at top right, rgba(13, 56, 114, 0.5), transparent 80%);
+  background-blend-mode: screen;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.btn-light:hover{
+  background-color:transparent !important;
+  border-color: #fff !important;
+  color:#fff !important;
+}
+</style>
+<div class="container-fluid border-0 min-vh-100 d-flex justify-content-center align-items-center ">  
+  <div class="col-lg-6 col-md-8" style="max-width:600px !important; background-color:rgb(255,255,255,0.05); background-image: radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.9), transparent 70%); background-blend-mode: screen;">
+    <div class="shadow-lg border-0" 
+         style="backdrop-filter: blur(12px);">
+      
+      <div class="p-3 text-center bg-dark text-white">
+        <h1 class="h4 mb-0">Business Acquisition Services</h1>
+      </div>
+
+      <div class="p-3 text-center text-white py-5">
+        <h3 class="mb-5">Welcome!</h3>
+
         <div class="d-flex justify-content-center gap-3 flex-wrap">
-          <a href="/business-form" class="btn btn-outline-primary rounded-pill px-4 py-2">
-            LOI Questions
+          <a href="/business-form" class="btn btn-outline-light rounded-pill px-4 py-2">
+            LOI Form
           </a>
-          <a href="/cim-form" class="btn btn-outline-secondary rounded-pill px-4 py-2">
-            CIM Questions
-                        </a>
-                    </div>
-                </div>
-            </div>
+          <a href="/cim-form" class="btn btn-light rounded-pill px-4 py-2">
+            CIM Form
+          </a>
         </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 {% endblock %}
