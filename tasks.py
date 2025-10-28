@@ -6,24 +6,26 @@ load_dotenv()
 
 from celery_app import celery_app
 from services import pdf_service, email_service
-from models import BusinessAcquisition
+from models import LOIQuestion, CIMQuestion, BusinessAcquisition
 from database import SessionLocal
 from google_drive import create_drive_uploader
 from slack_utils import create_slack_notifier
 from config import settings
 
 @celery_app.task(bind=True)
-def process_submission_complete(self, submission_id: int, files_data: list = None):
+def process_submission_complete(self, submission_id: int, files_data: list = None, form_type: str = "LOI"):
     try:
         db = SessionLocal()
-        submission = db.query(BusinessAcquisition).filter(BusinessAcquisition.id == submission_id).first()
+        model_class = LOIQuestion if form_type == "LOI" else CIMQuestion
+        submission = db.query(model_class).filter(model_class.id == submission_id).first()
         
         if not submission:
             raise ValueError(f"Submission {submission_id} not found")
         
-        print(f"🚀 Starting complete processing for submission {submission_id}")
+        print(f"🚀 Starting complete processing for {form_type} submission {submission_id}")
         
-        pdf_path = pdf_service.generate_business_acquisition_pdf(submission)
+        # Generate PDF using unified method
+        pdf_path = pdf_service.generate_pdf(submission, form_type)
         submission.pdf_generated = True
         db.commit()
         print(f"✅ PDF generated: {pdf_path}")
@@ -67,7 +69,8 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                 traceback.print_exc()
         
         drive_url = None
-        drive_file_name = f"loi_overview_{submission.full_name.replace(' ', '_')}_{submission.id}.pdf"
+        file_prefix = "cim_overview" if form_type == "CIM" else "loi_overview"
+        drive_file_name = f"{file_prefix}_{submission.full_name.replace(' ', '_')}_{submission.id}.pdf"
         
         try:
             print(f"☁️ Uploading PDF to Google Drive...")
@@ -101,7 +104,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         email_sent = loop.run_until_complete(
-            email_service.send_confirmation_email_with_pdf(submission, pdf_path)
+            email_service.send_confirmation_email_with_pdf(submission, pdf_path, form_type)
         )
         loop.close()
         
@@ -139,7 +142,8 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                     )
                 else:
                     print(f"⚠️ No Drive URL available, sending simple notification")
-                    message = f"🏢 New Business Acquisition Submission from {submission.full_name} ({submission.email})"
+                    form_label = "CIM Questions" if form_type == "CIM" else "LOI Questions"
+                    message = f"🏢 New {form_label} Submission from {submission.full_name} ({submission.email})"
                     slack_sent = slack_notifier.send_simple_message(message)
                 
                 if slack_sent:

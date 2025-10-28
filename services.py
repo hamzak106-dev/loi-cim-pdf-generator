@@ -12,9 +12,8 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from models import BusinessAcquisition
+from models import LOIQuestion, CIMQuestion, BusinessAcquisition
 from config import settings
-import requests
 
 class EmailService:
     def __init__(self):
@@ -24,17 +23,18 @@ class EmailService:
         self.password = settings.EMAIL_PASSWORD
         self.from_email = settings.FROM_EMAIL
     
-    async def send_confirmation_email_with_pdf(self, submission: BusinessAcquisition, pdf_path: str) -> bool:
+    async def send_confirmation_email_with_pdf(self, submission, pdf_path: str, form_type: str = "LOI") -> bool:
         try:
             msg = MIMEMultipart()
             msg['From'] = self.from_email
             msg['To'] = submission.email
-            msg['Subject'] = f"Business Acquisition Analysis Report - {submission.full_name}"
+            subject_type = "LOI Questions" if form_type == "LOI" else "CIM Questions"
+            msg['Subject'] = f"{subject_type} Analysis Report - {submission.full_name}"
             
             body = f"""
             Dear {submission.full_name},
             
-            Thank you for submitting your business acquisition details. Please find your professional analysis report attached.
+            Thank you for submitting your {subject_type}. Please find your professional analysis report attached.
             
             Submission Details:
             • Purchase Price: {submission.formatted_purchase_price}
@@ -42,7 +42,7 @@ class EmailService:
             • Industry: {submission.industry or 'Not specified'}
             • Location: {submission.location or 'Not specified'}
             
-            The attached PDF contains a comprehensive analysis of your business acquisition opportunity.
+            The attached PDF contains a comprehensive analysis of your business opportunity.
             
             Best regards,
             Business Acquisition Services Team
@@ -76,63 +76,61 @@ class EmailService:
             print(f"❌ Failed to send email: {str(e)}")
             return False
 
-class SlackService:
-    def __init__(self):
-        self.webhook_url = settings.SLACK_WEBHOOK_URL
-        self.channel = settings.SLACK_CHANNEL
-    
-    def send_notification(self, submission: BusinessAcquisition) -> bool:
-        if not self.webhook_url:
-            print("⚠️ Slack webhook URL not configured")
-            return False
-
-        message = {
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": "🏢 New Business Acquisition Submission"
-                    }
-                },
-                {
-                    "type": "section",
-                    "fields": [
-                        {"type": "mrkdwn", "text": f"*Name:*\n{submission.full_name or 'Not provided'}"},
-                        {"type": "mrkdwn", "text": f"*Email:*\n{submission.email}"},
-                        {"type": "mrkdwn", "text": f"*Purchase Price:*\n{submission.formatted_purchase_price or 'Not specified'}"},
-                        {"type": "mrkdwn", "text": f"*Revenue:*\n{submission.formatted_revenue or 'Not specified'}"},
-                        {"type": "mrkdwn", "text": f"*Industry:*\n{submission.industry or 'Not specified'}"},
-                        {"type": "mrkdwn", "text": f"*Location:*\n{submission.location or 'Not specified'}"}
-                    ]
-                }
-            ]
-        }
-        
-        try:
-            response = requests.post(
-                self.webhook_url,
-                json=message,
-                headers={'Content-Type': 'application/json'},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                print("✅ Slack notification sent successfully")
-                return True
-            else:
-                print(f"❌ Failed to send Slack notification: {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Error sending Slack notification: {str(e)}")
-            return False
-
 class PDFGenerationService:
     def __init__(self):
         self.company_name = settings.PDF_COMPANY_NAME
+        
+        # Define field configurations for different form types
+        self.LOI_FIELDS = [
+            ("Name", "full_name", "Not provided"),
+            ("Industry", "industry", "Not specified"),
+            ("Location", "location", "Not specified"),
+            ("Purchase Price", "formatted_purchase_price", None),
+            ("Revenue", "formatted_revenue", None),
+            ("Avg SDE", "formatted_avg_sde", None),
+            ("Seller Role", "seller_role", "Not specified"),
+            ("Reason for Selling", "reason_for_selling", "Not provided"),
+            ("Owner Involvement", "owner_involvement", "Not provided"),
+            ("Customer Concentration Risk", "customer_concentration_risk", "Not provided"),
+            ("Competition", "deal_competitiveness", "Not provided"),
+            ("Seller Note", "seller_note_openness", "Not provided"),
+        ]
+        
+        self.CIM_FIELDS = [
+            ("Name", "full_name", "Not provided"),
+            ("Industry", "industry", "Not specified"),
+            ("Location", "location", "Not specified"),
+            ("Purchase Price", "formatted_purchase_price", None),
+            ("Revenue", "formatted_revenue", None),
+            ("Avg SDE", "formatted_avg_sde", None),
+            ("Total $ Adjustments", "formatted_total_adjustments", None),
+            ("Seller Role", "seller_role", "Not specified"),
+            ("Reason for Selling", "reason_for_selling", "Not provided"),
+            ("Owner Involvement", "owner_involvement", "Not provided"),
+            ("GM in Place", "gm_in_place", "Not specified"),
+            ("Tenure of GM", "tenure_of_gm", "Not specified"),
+            ("Number of Employees", "number_of_employees", "Not specified"),
+        ]
+        
+        self.NARRATIVE_SECTIONS = [
+            ("🎯 Search Narrative Fit", "cim_search_narrative_fit"),
+            ("🔗 Search Narrative Connection", "search_narrative_relation"),
+            ("💡 Deal Interest", "deal_likes_dislikes"),
+            ("❓ Questions/Concerns", "deal_questions_concerns"),
+        ]
     
-    def generate_business_acquisition_pdf(self, submission: BusinessAcquisition) -> str:
+    def generate_pdf(self, submission, form_type: str = "LOI") -> str:
+        """
+        Universal PDF generator for any form type.
+        Change PDF style once here, applies to all forms.
+        
+        Args:
+            submission: Database model instance (LOIQuestion or CIMQuestion)
+            form_type: "LOI" or "CIM" to determine field configuration
+        
+        Returns:
+            Path to generated PDF file
+        """
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
         pdf_path = temp_file.name
         temp_file.close()
@@ -194,7 +192,9 @@ class PDFGenerationService:
             spaceAfter=15
         )
         
-        header_data = [[Paragraph("LOI Overview", title_style)],
+        # Dynamic title based on form type
+        title_text = f"{form_type} Overview"
+        header_data = [[Paragraph(title_text, title_style)],
                     [Paragraph("Professional Investment Opportunity Report", subtitle_style)]]
         
         header_table = Table(header_data, colWidths=[7*inch])
@@ -211,37 +211,36 @@ class PDFGenerationService:
 
         story.append(Paragraph("📊 Business Overview", section_header_style))
         
-        overview_data = [
-            [Paragraph("<b>Name</b>", label_style), 
-            Paragraph(submission.full_name or 'Not provided', value_style),
-            Paragraph("<b>Industry</b>", label_style),
-            Paragraph(submission.industry or 'Not specified', value_style)],
+        # Select field configuration based on form type
+        fields = self.CIM_FIELDS if form_type == "CIM" else self.LOI_FIELDS
+        
+        # Build overview data dynamically from field configuration
+        overview_data = []
+        row = []
+        for i, (label, attr_name, default) in enumerate(fields):
+            # Get value from submission
+            value = getattr(submission, attr_name, default)
+            if value is None:
+                value = default if default else "Not specified"
             
-            [Paragraph("<b>Location</b>", label_style),
-            Paragraph(submission.location or 'Not specified', value_style),
-            Paragraph("<b>Purchase Price</b>", label_style),
-            Paragraph(submission.formatted_purchase_price, value_style)],
+            # Convert to string if needed (for number_of_employees)
+            if not isinstance(value, str):
+                value = str(value)
             
-            [Paragraph("<b>Revenue</b>", label_style),
-            Paragraph(submission.formatted_revenue, value_style),
-            Paragraph("<b>Avg SDE</b>", label_style),
-            Paragraph(submission.formatted_avg_sde, value_style)],
+            row.append(Paragraph(f"<b>{label}</b>", label_style))
+            row.append(Paragraph(value, value_style))
             
-            [Paragraph("<b>Seller Role</b>", label_style),
-            Paragraph(submission.seller_role or 'Not specified', value_style),
-            Paragraph("<b>Reason for Selling</b>", label_style),
-            Paragraph(submission.reason_for_selling or 'Not provided', value_style)],
-            
-            [Paragraph("<b>Owner Involvement</b>", label_style),
-            Paragraph(submission.owner_involvement or 'Not provided', value_style),
-            Paragraph("<b>Customer Concentration Risk</b>", label_style),
-            Paragraph(submission.customer_concentration_risk or 'Not provided', value_style)],
-            
-            [Paragraph("<b>Competition</b>", label_style),
-            Paragraph(submission.deal_competitiveness or 'Not provided', value_style),
-            Paragraph("<b>Seller Note</b>", label_style),
-            Paragraph(submission.seller_note_openness or 'Not provided', value_style)],
-        ]
+            # Create new row every 2 fields (4 columns: label, value, label, value)
+            if len(row) == 4:
+                overview_data.append(row)
+                row = []
+        
+        # Add remaining fields if odd number
+        if row:
+            # Pad with empty cells
+            while len(row) < 4:
+                row.append(Paragraph("", label_style))
+            overview_data.append(row)
         
         overview_table = Table(overview_data, colWidths=[1.2*inch, 2.2*inch, 1.2*inch, 2.2*inch])
         overview_table.setStyle(TableStyle([
@@ -261,14 +260,9 @@ class PDFGenerationService:
         story.append(overview_table)
         story.append(Spacer(1, 30))
         
-        full_width_sections = [
-            ("🎯 Search Narrative Fit", submission.cim_search_narrative_fit or 'Not provided'),
-            ("🔗 Search Narrative Connection", submission.search_narrative_relation or 'Not provided'),
-            ("💡 Deal Interest", submission.deal_likes_dislikes or 'Not provided'),
-            ("❓ Questions/Concerns", submission.deal_questions_concerns or 'Not provided'),
-        ]
-        
-        for section_title, content in full_width_sections:
+        # Build narrative sections dynamically from configuration
+        for section_title, attr_name in self.NARRATIVE_SECTIONS:
+            content = getattr(submission, attr_name, None) or 'Not provided'
             header_data = [[Paragraph(section_title, 
                                     ParagraphStyle('SectionTitle',
                                                 parent=styles['Normal'],
@@ -341,7 +335,16 @@ class PDFGenerationService:
         
         doc.build(story)
         return pdf_path
+    
+    # Backward compatibility aliases
+    def generate_business_acquisition_pdf(self, submission) -> str:
+        """Legacy method - calls generate_pdf with LOI type"""
+        return self.generate_pdf(submission, "LOI")
+    
+    def generate_cim_pdf(self, submission) -> str:
+        """Legacy method - calls generate_pdf with CIM type"""
+        return self.generate_pdf(submission, "CIM")
 
 email_service = EmailService()
-slack_service = SlackService()
 pdf_service = PDFGenerationService()
+

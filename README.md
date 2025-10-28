@@ -1,10 +1,10 @@
-# Business Acquisition PDF Generator
+# LOI Questions PDF Generator
 
 A FastAPI-based application that generates professional Letter of Intent PDFs for business acquisitions, with automated email delivery, Google Drive storage, and Slack notifications.
 
 ## Features
 
-- 📝 Web form for business acquisition submissions
+- 📝 Web form for LOI questions submissions
 - 📄 Professional PDF generation with custom styling
 - 📧 Automated email delivery with PDF attachments
 - ☁️ Google Drive upload (Shared Drive support)
