@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Login - Business Acquisition Services{% endblock %}
+
+{% block content %}
+<div class="container-fluid min-vh-100 d-flex justify-content-center align-items-center">
+  <div class="col-lg-4 col-md-6 col-sm-8" style="max-width: 450px;">
+    <div class="card shadow-lg">
+      <div class="card-header text-center py-4">
+        <h3 class="mb-0">Admin Login</h3>
+        <p class="text-muted mb-0 mt-2">Business Acquisition Services</p>
+      </div>
+      
+      <div class="card-body p-4">
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+          {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="POST" action="/admin/login">
+          <div class="mb-4">
+            <label for="email" class="form-label fw-semibold">Email Address</label>
+            <input 
+              type="email" 
+              class="form-control form-control-lg" 
+              id="email" 
+              name="email" 
+              required 
+              autofocus
+              placeholder="admin@example.com"
+            >
+          </div>
+          
+          <div class="mb-4">
+            <label for="password" class="form-label fw-semibold">Password</label>
+            <input 
+              type="password" 
+              class="form-control form-control-lg" 
+              id="password" 
+              name="password" 
+              required
+              placeholder="Enter your password"
+            >
+          </div>
+          
+          <div class="d-grid gap-2 mt-4">
+            <button type="submit" class="btn btn-primary btn-lg">
+              Login
+            </button>
+          </div>
+        </form>
+        
+        <div class="text-center mt-4">
+          <a href="/" class="text-muted">Back to Home</a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Demo Credentials Info -->
+    <div class="card mt-3" style="background-color: rgba(255, 255, 255, 0.03);">
+      <div class="card-body p-3">
+        <p class="text-muted small mb-2"><strong>Demo Credentials:</strong></p>
+        <p class="text-muted small mb-0">Email: admin@example.com</p>
+        <p class="text-muted small mb-0">Password: admin123</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

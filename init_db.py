@@ -4,7 +4,7 @@ Database initialization script for Business Acquisition PDF Generator
 Run this script to create the database tables.
 """
 
-from database import DatabaseManager, get_db_info
+from db.database import DatabaseManager, get_db_info
 from config import settings
 
 def init_database():

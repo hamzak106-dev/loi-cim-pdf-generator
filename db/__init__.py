@@ -11,7 +11,7 @@ from .database import (
     get_db_info,
     DatabaseManager
 )
-from .models import LOIQuestion, CIMQuestion, BusinessAcquisition
+from .models import Form, FormType, LOIQuestion, CIMQuestion, BusinessAcquisition, User
 
 __all__ = [
     'engine',
@@ -22,7 +22,10 @@ __all__ = [
     'drop_tables',
     'get_db_info',
     'DatabaseManager',
+    'Form',
+    'FormType',
     'LOIQuestion',
     'CIMQuestion',
     'BusinessAcquisition',
+    'User',
 ]
