@@ -1,4 +1,5 @@
 /* PDF-specific styles for WeasyPrint */
+/* Color scheme matches website: Dark Blue rgba(13, 56, 114) */
 
 @page {
     size: letter;
@@ -16,16 +17,17 @@ body {
     font-size: 11pt;
     color: #2C3E50;
     line-height: 1.6;
+    background-color: white;
 }
 
-/* Header Section */
+/* Header Section - Using website's dark blue */
 .pdf-header {
-    background: linear-gradient(135deg, #1B62CF 0%, #4A8FE7 100%);
+    background: linear-gradient(135deg, #0D3872 0%, #1a5a9e 100%);
     color: white;
     padding: 30px;
     text-align: center;
     margin-bottom: 30px;
-    border-bottom: 3px solid #4A8FE7;
+    border-bottom: 3px solid #0D3872;
 }
 
 .pdf-header h1 {
@@ -37,20 +39,21 @@ body {
 .pdf-header p {
     font-size: 14pt;
     margin: 0;
+    opacity: 0.9;
 }
 
-/* Section Headers */
+/* Section Headers - Using website's dark blue */
 .section-header {
     font-size: 16pt;
-    color: #1B62CF;
+    color: #0D3872;
     font-weight: bold;
     margin-top: 25px;
     margin-bottom: 15px;
     padding-bottom: 5px;
-    border-bottom: 2px solid #E8F1FC;
+    border-bottom: 2px solid rgba(13, 56, 114, 0.3);
 }
 
-/* Overview Table */
+/* Overview Table - Using website's dark blue theme */
 .overview-table {
     width: 100%;
     border-collapse: collapse;
@@ -59,12 +62,12 @@ body {
 
 .overview-table td {
     padding: 10px;
-    border: 1px solid #4A8FE7;
+    border: 1px solid rgba(13, 56, 114, 0.3);
 }
 
 .overview-table td.label {
-    background-color: #E8F1FC;
-    color: #1B62CF;
+    background-color: rgba(13, 56, 114, 0.1);
+    color: #0D3872;
     font-weight: bold;
     width: 25%;
     font-size: 10pt;
@@ -77,14 +80,14 @@ body {
     font-size: 11pt;
 }
 
-/* Narrative Sections */
+/* Narrative Sections - Using website's dark blue theme */
 .narrative-section {
     margin-bottom: 20px;
     page-break-inside: avoid;
 }
 
 .narrative-header {
-    background-color: #1B62CF;
+    background-color: #0D3872;
     color: white;
     padding: 10px 15px;
     font-size: 14pt;
@@ -93,9 +96,9 @@ body {
 }
 
 .narrative-content {
-    background-color: #E8F1FC;
+    background-color: rgba(13, 56, 114, 0.05);
     padding: 15px;
-    border: 1px solid #4A8FE7;
+    border: 1px solid rgba(13, 56, 114, 0.3);
     border-top: none;
     color: #2C3E50;
     font-size: 11pt;
@@ -104,11 +107,11 @@ body {
     word-wrap: break-word;
 }
 
-/* Footer */
+/* Footer - Using website's dark blue theme */
 .pdf-footer {
     margin-top: 40px;
     padding-top: 20px;
-    border-top: 2px solid #4A8FE7;
+    border-top: 2px solid rgba(13, 56, 114, 0.3);
     text-align: center;
     font-size: 9pt;
     color: #5D6D7E;
@@ -117,15 +120,18 @@ body {
 .pdf-footer .company-name {
     font-weight: bold;
     margin-bottom: 5px;
+    color: #0D3872;
 }
 
 .pdf-footer .timestamp {
     margin-bottom: 5px;
+    color: #5D6D7E;
 }
 
 .pdf-footer .disclaimer {
     font-style: italic;
     margin-top: 10px;
+    color: #5D6D7E;
 }
 
 /* Utility Classes */
