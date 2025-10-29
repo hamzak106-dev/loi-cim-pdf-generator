@@ -156,7 +156,7 @@ class SlackNotifier:
         message = {"blocks": blocks}
 
         # Include target channel if specified
-        if getattr(self, "channel", None):
+        if self.channel:
             message["channel"] = self.channel
 
         return message

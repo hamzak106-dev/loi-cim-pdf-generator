@@ -126,12 +126,14 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         
         # Step 4: Send confirmation email
         print(f"📧 Sending email to {submission.email}...")
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        email_sent = loop.run_until_complete(
-            email_service.send_confirmation_email_with_pdf(submission, pdf_path, form_type)
-        )
-        loop.close()
+        try:
+            email_sent = asyncio.run(
+                email_service.send_confirmation_email_with_pdf(submission, pdf_path, form_type)
+            )
+        except Exception as e:
+            print(f"❌ Failed to send email: {e}")
+        else:
+            print("✅ Email sent successfully!")
         
         submission.email_sent = email_sent
         db.commit()
