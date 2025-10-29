@@ -2,10 +2,9 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from models import LOIQuestion, CIMQuestion, BusinessAcquisition
+from db import LOIQuestion, CIMQuestion, BusinessAcquisition, get_db
 from services import pdf_service
-from database import get_db
-from tasks import process_submission_complete
+from tasks.pdf_tasks import process_submission_complete
 import os
 import tempfile
 

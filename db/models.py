@@ -1,12 +1,11 @@
 """
 Database models for Business Acquisition PDF Generator
 """
-from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+from sqlalchemy.sql import func
+from .database import Base
 from datetime import datetime
 from typing import Optional
-
-Base = declarative_base()
 
 class LOIQuestion(Base):
     """

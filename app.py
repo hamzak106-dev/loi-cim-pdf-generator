@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
-from database import create_tables
+from db import create_tables
 from views import router
 
 # FastAPI app configuration

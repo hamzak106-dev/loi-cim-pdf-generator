@@ -1,19 +1,40 @@
+"""
+PDF Processing Tasks
+Background jobs for PDF generation, email sending, and file uploads
+"""
 import os
 import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from celery_app import celery_app
-from services import pdf_service, email_service
-from models import LOIQuestion, CIMQuestion, BusinessAcquisition
-from database import SessionLocal
-from google_drive import create_drive_uploader
-from slack_utils import create_slack_notifier
+from celery_worker.celery_config import celery_app
+from services import pdf_service, email_service, create_drive_uploader, create_slack_notifier
+from db import LOIQuestion, CIMQuestion, SessionLocal
 from config import settings
+
 
 @celery_app.task(bind=True)
 def process_submission_complete(self, submission_id: int, files_data: list = None, form_type: str = "LOI"):
+    """
+    Complete processing workflow for form submissions
+    
+    Steps:
+    1. Generate PDF from submission data
+    2. Upload user files to Google Drive (if any)
+    3. Upload generated PDF to Google Drive
+    4. Send confirmation email with PDF
+    5. Send Slack notification
+    6. Cleanup temporary files
+    
+    Args:
+        submission_id: Database ID of the submission
+        files_data: List of uploaded file information
+        form_type: "LOI" or "CIM"
+        
+    Returns:
+        dict: Status and submission_id
+    """
     try:
         db = SessionLocal()
         model_class = LOIQuestion if form_type == "LOI" else CIMQuestion
@@ -24,12 +45,13 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         
         print(f"🚀 Starting complete processing for {form_type} submission {submission_id}")
         
-        # Generate PDF using unified method
+        # Step 1: Generate PDF
         pdf_path = pdf_service.generate_pdf(submission, form_type)
         submission.pdf_generated = True
         db.commit()
         print(f"✅ PDF generated: {pdf_path}")
         
+        # Step 2: Upload user files to Google Drive
         uploaded_file_url = None
         if files_data and len(files_data) > 0:
             print(f"📁 Processing {len(files_data)} uploaded files...")
@@ -55,6 +77,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                     print(f"✅ User file uploaded to Google Drive: {file_name}")
                     print(f"📎 File URL: {uploaded_file_url}")
                     
+                    # Cleanup uploaded file
                     try:
                         os.remove(file_path)
                         print(f"🗑️ Cleaned up uploaded file")
@@ -68,6 +91,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                 import traceback
                 traceback.print_exc()
         
+        # Step 3: Upload PDF to Google Drive
         drive_url = None
         file_prefix = "cim_overview" if form_type == "CIM" else "loi_overview"
         drive_file_name = f"{file_prefix}_{submission.full_name.replace(' ', '_')}_{submission.id}.pdf"
@@ -100,6 +124,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
             traceback.print_exc()
             print(f"⚠️ Continuing without Drive upload")
         
+        # Step 4: Send confirmation email
         print(f"📧 Sending email to {submission.email}...")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -112,6 +137,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         db.commit()
         print(f"✅ Email sent: {email_sent}")
         
+        # Step 5: Send Slack notification
         try:
             print(f"💬 Sending Slack notification...")
             
@@ -143,7 +169,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                 else:
                     print(f"⚠️ No Drive URL available, sending simple notification")
                     form_label = "CIM Questions" if form_type == "CIM" else "LOI Questions"
-                    message = f"🏢 New {form_label} Submission from {submission.full_name} ({submission.email})"
+                    message = f"New {form_label} Submission from {submission.full_name} ({submission.email})"
                     slack_sent = slack_notifier.send_simple_message(message)
                 
                 if slack_sent:
@@ -156,6 +182,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
             import traceback
             traceback.print_exc()
         
+        # Step 6: Cleanup temporary PDF file
         try:
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
@@ -163,6 +190,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         except Exception as e:
             print(f"⚠️ Could not clean up PDF: {e}")
         
+        # Mark as processed
         submission.is_processed = True
         db.commit()
         db.close()
