@@ -42,7 +42,6 @@
       <div class="d-flex justify-content-between align-items-center">
         <div>
           <a href="/admin/dashboard" class="btn btn-outline-light mb-2">← Back to Dashboard</a>
-          <h2>{{ form_type }} Record #{{ record.id }}</h2>
         </div>
         <div>
           {% if record.file_urls %}
@@ -175,14 +174,7 @@
             {% endif %}
           </div>
           
-          <div class="detail-label">Processed</div>
-          <div class="detail-value">
-            {% if record.is_processed %}
-              <span class="badge bg-success">Yes</span>
-            {% else %}
-              <span class="badge bg-warning">Pending</span>
-            {% endif %}
-          </div>
+         
           
           <div class="detail-label">Has Uploaded Files</div>
           <div class="detail-value">
