@@ -3,6 +3,12 @@
 Database initialization script for Business Acquisition PDF Generator
 Run this script to create the database tables.
 """
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
 
 from db.database import DatabaseManager, get_db_info
 from config import settings

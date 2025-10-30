@@ -3,6 +3,13 @@
 Seed file to create demo admin users
 Run this file to populate the database with initial admin accounts
 """
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from db import SessionLocal, User
 from werkzeug.security import generate_password_hash
 

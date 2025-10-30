@@ -12,6 +12,7 @@ from .database import (
     DatabaseManager
 )
 from .models import Form, FormType, LOIQuestion, CIMQuestion, BusinessAcquisition, User
+from .alembic_manager import alembic_manager, AlembicManager
 
 __all__ = [
     'engine',
@@ -28,4 +29,6 @@ __all__ = [
     'CIMQuestion',
     'BusinessAcquisition',
     'User',
+    'alembic_manager',
+    'AlembicManager',
 ]
