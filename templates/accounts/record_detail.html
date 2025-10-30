@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_type }} Record #{{ record.id }} - Admin Dashboard{% endblock %}
+
+{% block content %}
+<style>
+  .detail-card {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .detail-label {
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+  
+  .detail-value {
+    color: #fff;
+    font-size: 1.1rem;
+    margin-bottom: 20px;
+  }
+  
+  .pdf-preview {
+    width: 100%;
+    height: 800px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+  }
+  
+  .file-preview {
+    max-width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+  }
+</style>
+
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <a href="/admin/dashboard" class="btn btn-outline-light mb-2">← Back to Dashboard</a>
+        </div>
+        <div>
+          {% if record.file_urls %}
+          <a href="{{ record.file_urls }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary me-2">View PDF</a>
+          {% endif %}
+          {% if record.uploaded_file_url %}
+          <a href="{{ record.uploaded_file_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-light">View Uploaded File</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Record Details -->
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card detail-card">
+        <div class="card-header">
+          <h4 class="mb-0">Submission Details</h4>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="detail-label">Full Name</div>
+              <div class="detail-value">{{ record.full_name }}</div>
+              
+              <div class="detail-label">Email</div>
+              <div class="detail-value">{{ record.email }}</div>
+              
+              <div class="detail-label">Industry</div>
+              <div class="detail-value">{{ record.industry or 'N/A' }}</div>
+              
+              <div class="detail-label">Location</div>
+              <div class="detail-value">{{ record.location or 'N/A' }}</div>
+            </div>
+            
+            <div class="col-md-6">
+              <div class="detail-label">Purchase Price</div>
+              <div class="detail-value">{{ record.formatted_purchase_price }}</div>
+              
+              <div class="detail-label">Annual Revenue</div>
+              <div class="detail-value">{{ record.formatted_revenue }}</div>
+              
+              <div class="detail-label">Average SDE</div>
+              <div class="detail-value">{{ record.formatted_avg_sde if record.avg_sde else 'N/A' }}</div>
+              
+              {% if form_type == 'CIM' and record.total_adjustments %}
+              <div class="detail-label">Total Adjustments</div>
+              <div class="detail-value">{{ record.formatted_total_adjustments }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <hr style="border-color: rgba(255, 255, 255, 0.2);">
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="detail-label">Seller Role</div>
+              <div class="detail-value">{{ record.seller_role or 'N/A' }}</div>
+              
+              <div class="detail-label">Reason for Selling</div>
+              <div class="detail-value">{{ record.reason_for_selling or 'N/A' }}</div>
+            </div>
+            
+            <div class="col-md-6">
+              {% if form_type == 'CIM' %}
+              <div class="detail-label">GM in Place</div>
+              <div class="detail-value">{{ record.gm_in_place or 'N/A' }}</div>
+              
+              <div class="detail-label">Tenure of GM</div>
+              <div class="detail-value">{{ record.tenure_of_gm or 'N/A' }}</div>
+              
+              <div class="detail-label">Number of Employees</div>
+              <div class="detail-value">{{ record.number_of_employees or 'N/A' }}</div>
+              {% else %}
+              <div class="detail-label">Customer Concentration Risk</div>
+              <div class="detail-value">{{ record.customer_concentration_risk or 'N/A' }}</div>
+              
+              <div class="detail-label">Deal Competitiveness</div>
+              <div class="detail-value">{{ record.deal_competitiveness or 'N/A' }}</div>
+              
+              <div class="detail-label">Seller Note Openness</div>
+              <div class="detail-value">{{ record.seller_note_openness or 'N/A' }}</div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <hr style="border-color: rgba(255, 255, 255, 0.2);">
+          
+          <div class="detail-label">Owner Involvement</div>
+          <div class="detail-value">{{ record.owner_involvement or 'N/A' }}</div>
+          
+          <div class="detail-label">CIM Search Narrative Fit</div>
+          <div class="detail-value">{{ record.cim_search_narrative_fit or 'N/A' }}</div>
+          
+          <div class="detail-label">Search Narrative Relation</div>
+          <div class="detail-value" style="white-space: pre-wrap;">{{ record.search_narrative_relation or 'N/A' }}</div>
+          
+          <div class="detail-label">Deal Likes/Dislikes</div>
+          <div class="detail-value" style="white-space: pre-wrap;">{{ record.deal_likes_dislikes or 'N/A' }}</div>
+          
+          <div class="detail-label">Deal Questions/Concerns</div>
+          <div class="detail-value" style="white-space: pre-wrap;">{{ record.deal_questions_concerns or 'N/A' }}</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Status Card -->
+    <div class="col-md-4">
+      <div class="card detail-card mb-3">
+        <div class="card-header">
+          <h5 class="mb-0">Status</h5>
+        </div>
+        <div class="card-body">
+          <div class="detail-label">PDF Generated</div>
+          <div class="detail-value">
+            {% if record.pdf_generated %}
+              <span class="badge bg-success">Yes</span>
+            {% else %}
+              <span class="badge bg-secondary">No</span>
+            {% endif %}
+          </div>
+          
+          <div class="detail-label">Email Sent</div>
+          <div class="detail-value">
+            {% if record.email_sent %}
+              <span class="badge bg-success">Yes</span>
+            {% else %}
+              <span class="badge bg-secondary">No</span>
+            {% endif %}
+          </div>
+          
+         
+          
+          <div class="detail-label">Has Uploaded Files</div>
+          <div class="detail-value">
+            {% if record.uploaded_file_url %}
+              <span class="badge bg-success">Yes</span>
+            {% else %}
+              <span class="badge bg-secondary">No</span>
+            {% endif %}
+          </div>
+          
+          <div class="detail-label">Attachment Count</div>
+          <div class="detail-value">{{ record.attachment_count or 0 }}</div>
+          
+          <div class="detail-label">Created At</div>
+          <div class="detail-value">{{ record.created_at.strftime('%Y-%m-%d %H:%M:%S') if record.created_at else 'N/A' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- PDF Preview 
+  {% if record.file_urls %}
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card detail-card">
+        <div class="card-header">
+          <h5 class="mb-0">PDF Preview</h5>
+        </div>
+        <div class="card-body">
+          <iframe src="{{ record.file_urls }}" class="pdf-preview"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  -->
+  <!-- Uploaded File Preview   {% if record.uploaded_file_url %}
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card detail-card">
+        <div class="card-header">
+          <h5 class="mb-0">Uploaded File Preview</h5>
+        </div>
+        <div class="card-body text-center">
+          <p class="text-muted mb-3">File uploaded by user</p>
+          <a href="{{ record.uploaded_file_url }}" target="_blank" class="btn btn-primary">
+            Open File in New Tab
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+-->

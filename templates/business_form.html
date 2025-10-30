@@ -214,6 +214,18 @@ function toggleSearchNarrative() {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
   toggleSearchNarrative();
+  
+  // Scroll to top if success message is present
+  const successAlert = document.querySelector('.alert-success');
+  if (successAlert) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Optional: Auto-hide success message after 10 seconds
+    setTimeout(function() {
+      const alert = bootstrap.Alert.getOrCreateInstance(successAlert);
+      alert.close();
+    }, 10000);
+  }
 });
 </script>
 {% endblock %}

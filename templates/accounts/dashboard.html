@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Business Acquisition Services{% endblock %}
+
+{% block content %}
+<style>
+  .table-container {
+    max-height: 600px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+  }
+  
+  .table {
+    color: #fff;
+  }
+  
+  .table thead {
+    position: sticky;
+    top: 0;
+    background-color: rgba(20,34,59, 0.8);
+    z-index: 10;
+  }
+  
+  .table tbody tr {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .table tbody tr:hover {
+    background-color: rgba(13, 56, 114, 0.3);
+    cursor: pointer;
+    color: #fff;
+  }
+  
+  .table td, .table th {
+    border-color: rgba(255, 255, 255, 0.1);
+    padding: 12px;
+    vertical-align: middle;
+  }
+  
+  .badge {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .search-box, .filter-select {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+  
+  .search-box:focus, .filter-select:focus {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(13, 56, 114, 0.8);
+    color: #fff;
+  }
+  
+  .filter-select option {
+    background-color: rgba(5, 13, 30, 0.95);
+    color: #fff;
+  }
+  
+  .clickable-link {
+    color: #4da3ff;
+    text-decoration: none;
+  }
+  
+  .clickable-link:hover {
+    color: #fff;
+    background-color: rgba(13, 56, 114, 0.5);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  
+  .filter-btn {
+    margin: 0 5px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .filter-btn.active {
+    background-color: rgba(13, 56, 114, 0.8);
+    border: 1px solid #fff;
+    color: #fff;
+  }
+  .badge-loi{
+    background-color: rgba(68, 124, 197, 0.8);
+ 
+  }
+  .badge-cim{
+    background-color: rgba(18, 84, 172, 0.6);
+ 
+  }
+  .table-container {
+  overflow-y: scroll;
+  scrollbar-width: none; 
+  scroll-behavior: smooth;
+  
+  -ms-overflow-style: none; 
+}
+
+.table-container::-webkit-scrollbar {
+  display: none;
+}
+</style>
+
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <h2>Admin Dashboard</h2>
+        <div>
+          <span class="text-muted me-3">Welcome, {{ admin_name }}</span>
+          <a href="/admin/logout" class="btn btn-outline-light">Logout</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Statistics Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h3 class="mb-0">{{ loi_count }}</h3>
+          <p class="text-muted mb-0">LOI Submissions</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h3 class="mb-0">{{ cim_count }}</h3>
+          <p class="text-muted mb-0">CIM Submissions</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h3 class="mb-0">{{ total_count }}</h3>
+          <p class="text-muted mb-0">Total Submissions</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body text-center">
+          <h3 class="mb-0">{{ user_count }}</h3>
+          <p class="text-muted mb-0">Total Users</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Unified Forms Table -->
+  <div class="row mb-5">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <div class="row align-items-center">
+            <div class="col-md-4">
+              <h4 class="mb-0">All Submissions</h4>
+            </div>
+            <div class="col-md-8">
+              <div class="d-flex justify-content-end align-items-center gap-2">
+                <!-- Filter Buttons -->
+                <div class="btn-group" role="group">
+                  <a href="/admin/dashboard?filter_type=all" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'all' %}active{% endif %}">All</a>
+                  <a href="/admin/dashboard?filter_type=loi" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'loi' %}active{% endif %}">LOI</a>
+                  <a href="/admin/dashboard?filter_type=cim" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'cim' %}active{% endif %}">CIM</a>
+                </div>
+                
+                <!-- Search Box -->
+                <input 
+                  type="text" 
+                  id="search-input" 
+                  class="form-control search-box" 
+                  placeholder="Search by name or email..." 
+                  style="max-width: 300px;"
+                  onkeyup="filterTable()"
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-container">
+            <table class="table table-hover mb-0" id="forms-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Industry</th>
+                  <th>Location</th>
+                  <th>Purchase Price</th>
+                  <th>Revenue</th>
+                  <th>PDF URL</th>
+                  <th>File URL</th>
+                  <th>Created At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for form in forms %}
+                <tr onclick="window.location.href='/admin/record/{{ form.id }}'">
+                  <td>
+                    {% if form.form_type.value == 'LOI' %}
+                      <span class="badge badge-loi">LOI</span>
+                    {% else %}
+                      <span class="badge badge-cim">CIM</span>
+                    {% endif %}
+                  </td>
+                  <td><strong>{{ form.full_name }}</strong></td>
+                  <td>{{ form.email }}</td>
+                  <td>{{ form.industry or '--' }}</td>
+                  <td>{{ form.location or '--' }}</td>
+                  <td>{{ form.formatted_purchase_price }}</td>
+                  <td>{{ form.formatted_revenue }}</td>
+                  <td onclick="event.stopPropagation()">
+                    {% if form.file_urls %}
+                      <a href="{{ form.file_urls }}" target="_blank" class="clickable-link">View PDF</a>
+                    {% else %}
+                      <span class="text-muted">--</span>
+                    {% endif %}
+                  </td>
+                  <td onclick="event.stopPropagation()">
+                    {% if form.uploaded_file_url %}
+                      <a href="{{ form.uploaded_file_url }}" target="_blank" class="clickable-link">View File</a>
+                    {% else %}
+                      <span class="text-muted">--</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ form.created_at.strftime('%Y-%m-%d %H:%M') if form.created_at else '--' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="10" class="text-center text-muted">No submissions yet</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable() {
+  const input = document.getElementById('search-input');
+  const filter = input.value.toUpperCase();
+  const table = document.getElementById('forms-table');
+  const tr = table.getElementsByTagName('tr');
+  
+  for (let i = 1; i < tr.length; i++) {
+    const nameCell = tr[i].getElementsByTagName('td')[1]; // Name column
+    const emailCell = tr[i].getElementsByTagName('td')[2]; // Email column
+    
+    if (nameCell && emailCell) {
+      const nameText = nameCell.textContent || nameCell.innerText;
+      const emailText = emailCell.textContent || emailCell.innerText;
+      
+      if (nameText.toUpperCase().indexOf(filter) > -1 || emailText.toUpperCase().indexOf(filter) > -1) {
+        tr[i].style.display = '';
+      } else {
+        tr[i].style.display = 'none';
+      }
+    }
+  }
+}
+</script>
+{% endblock %}

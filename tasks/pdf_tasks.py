@@ -10,7 +10,7 @@ load_dotenv()
 
 from celery_worker.celery_config import celery_app
 from services import pdf_service, email_service, create_drive_uploader, create_slack_notifier
-from db import LOIQuestion, CIMQuestion, SessionLocal
+from db import Form, FormType, SessionLocal
 from config import settings
 
 
@@ -37,8 +37,8 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
     """
     try:
         db = SessionLocal()
-        model_class = LOIQuestion if form_type == "LOI" else CIMQuestion
-        submission = db.query(model_class).filter(model_class.id == submission_id).first()
+        # Use unified Form model
+        submission = db.query(Form).filter(Form.id == submission_id).first()
         
         if not submission:
             raise ValueError(f"Submission {submission_id} not found")
