@@ -1,5 +1,6 @@
 """
-Slack integration for sending notifications with PDF links
+Slack Service
+Handles sending notifications to Slack via webhooks
 """
 import requests
 from typing import Optional, Dict, Any
@@ -34,6 +35,7 @@ class SlackNotifier:
             submission_data: Dictionary with submission details (name, email, etc.)
             drive_url: Google Drive shareable URL
             file_name: Name of the uploaded PDF file
+            uploaded_file_url: Optional URL for uploaded file
             
         Returns:
             True if successful, False otherwise
@@ -95,7 +97,7 @@ class SlackNotifier:
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": "📄 New Business Acquisition PDF Generated"
+                    "text": "New Business Acquisition PDF Generated"
                 }
             },
             {
@@ -122,7 +124,7 @@ class SlackNotifier:
         action_elements = [
             {
                 "type": "button",
-                "text": {"type": "plain_text", "text": "📎 View PDF on Google Drive"},
+                "text": {"type": "plain_text", "text": "View PDF on Google Drive"},
                 "url": drive_url,
                 "style": "primary"
             }
@@ -130,7 +132,7 @@ class SlackNotifier:
         if uploaded_file_url:
             action_elements.append({
                 "type": "button",
-                "text": {"type": "plain_text", "text": "📄 View Uploaded File"},
+                "text": {"type": "plain_text", "text": "View Uploaded File"},
                 "url": uploaded_file_url
             })
 
@@ -154,7 +156,7 @@ class SlackNotifier:
         message = {"blocks": blocks}
 
         # Include target channel if specified
-        if getattr(self, "channel", None):
+        if self.channel:
             message["channel"] = self.channel
 
         return message

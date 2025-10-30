@@ -1,0 +1,161 @@
+/* PDF-specific styles for WeasyPrint */
+/* Color scheme matches website: Dark Blue rgba(13, 56, 114) */
+
+@page {
+    size: letter;
+    margin: 0.5in;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Helvetica', 'Arial', sans-serif;
+    font-size: 11pt;
+    color: #2C3E50;
+    line-height: 1.6;
+    background-color: white;
+}
+
+/* Header Section - Using website's dark blue */
+.pdf-header {
+    background: linear-gradient(135deg, #0D3872 0%, #1a5a9e 100%);
+    color: white;
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 3px solid #0D3872;
+}
+
+.pdf-header h1 {
+    font-size: 32pt;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.pdf-header p {
+    font-size: 14pt;
+    margin: 0;
+    opacity: 0.9;
+}
+
+/* Section Headers - Using website's dark blue */
+.section-header {
+    font-size: 16pt;
+    color: #0D3872;
+    font-weight: bold;
+    margin-top: 25px;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid rgba(13, 56, 114, 0.3);
+}
+
+/* Overview Table - Using website's dark blue theme */
+.overview-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+}
+
+.overview-table td {
+    padding: 10px;
+    border: 1px solid rgba(13, 56, 114, 0.3);
+}
+
+.overview-table td.label {
+    background-color: rgba(13, 56, 114, 0.1);
+    color: #0D3872;
+    font-weight: bold;
+    width: 25%;
+    font-size: 10pt;
+}
+
+.overview-table td.value {
+    background-color: white;
+    color: #2C3E50;
+    width: 25%;
+    font-size: 11pt;
+}
+
+/* Narrative Sections - Using website's dark blue theme */
+.narrative-section {
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+}
+
+.narrative-header {
+    background-color: #0D3872;
+    color: white;
+    padding: 10px 15px;
+    font-size: 14pt;
+    font-weight: bold;
+    margin-bottom: 0;
+}
+
+.narrative-content {
+    background-color: rgba(13, 56, 114, 0.05);
+    padding: 15px;
+    border: 1px solid rgba(13, 56, 114, 0.3);
+    border-top: none;
+    color: #2C3E50;
+    font-size: 11pt;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Footer - Using website's dark blue theme */
+.pdf-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid rgba(13, 56, 114, 0.3);
+    text-align: center;
+    font-size: 9pt;
+    color: #5D6D7E;
+}
+
+.pdf-footer .company-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #0D3872;
+}
+
+.pdf-footer .timestamp {
+    margin-bottom: 5px;
+    color: #5D6D7E;
+}
+
+.pdf-footer .disclaimer {
+    font-style: italic;
+    margin-top: 10px;
+    color: #5D6D7E;
+}
+
+/* Utility Classes */
+.text-center {
+    text-align: center;
+}
+
+.text-muted {
+    color: #5D6D7E;
+}
+
+.mb-0 {
+    margin-bottom: 0;
+}
+
+.mt-3 {
+    margin-top: 15px;
+}
+
+/* Page breaks */
+.page-break {
+    page-break-after: always;
+}
+
+.no-break {
+    page-break-inside: avoid;
+}

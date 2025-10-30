@@ -1,9 +1,14 @@
+"""
+Google Drive Service
+Handles file uploads to Google Drive
+"""
 import os
 from typing import Optional
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
+
 
 class GoogleDriveUploader:
     def __init__(self, credentials_path: str, folder_id: Optional[str] = None):
@@ -25,6 +30,17 @@ class GoogleDriveUploader:
             raise
     
     def upload_file(self, file_path: str, file_name: Optional[str] = None, mime_type: Optional[str] = None) -> dict:
+        """
+        Upload any file to Google Drive
+        
+        Args:
+            file_path: Path to the file to upload
+            file_name: Optional custom filename
+            mime_type: Optional MIME type
+            
+        Returns:
+            dict: Contains file_id, file_name, and shareable_url
+        """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
         
@@ -75,6 +91,16 @@ class GoogleDriveUploader:
             raise
     
     def upload_pdf(self, pdf_path: str, file_name: Optional[str] = None) -> dict:
+        """
+        Upload PDF file to Google Drive
+        
+        Args:
+            pdf_path: Path to the PDF file
+            file_name: Optional custom filename
+            
+        Returns:
+            dict: Contains file_id, file_name, and shareable_url
+        """
         if not os.path.exists(pdf_path):
             raise FileNotFoundError(f"PDF file not found: {pdf_path}")
         
@@ -122,6 +148,7 @@ class GoogleDriveUploader:
             raise
     
     def _make_shareable(self, file_id: str):
+        """Make file publicly accessible with link"""
         try:
             permission = {
                 'type': 'anyone',
@@ -136,6 +163,7 @@ class GoogleDriveUploader:
             print(f"⚠️ Could not make file shareable: {error}")
     
     def _get_shareable_link(self, file_id: str) -> str:
+        """Get shareable link for a file"""
         try:
             file = self.service.files().get(
                 fileId=file_id,
@@ -147,6 +175,7 @@ class GoogleDriveUploader:
             return f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
     
     def delete_file(self, file_id: str) -> bool:
+        """Delete file from Google Drive"""
         try:
             self.service.files().delete(
                 fileId=file_id,
@@ -158,6 +187,17 @@ class GoogleDriveUploader:
             print(f"❌ Failed to delete file: {error}")
             return False
 
+
 def create_drive_uploader(credentials_path: str = "service_account.json", 
                          folder_id: Optional[str] = None) -> GoogleDriveUploader:
+    """
+    Factory function to create GoogleDriveUploader instance
+    
+    Args:
+        credentials_path: Path to service account JSON file
+        folder_id: Optional Google Drive folder ID
+        
+    Returns:
+        GoogleDriveUploader instance
+    """
     return GoogleDriveUploader(credentials_path, folder_id)

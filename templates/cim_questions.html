@@ -110,7 +110,7 @@
                 <div class="row g-3 mt-1">
                   <div class="col-md-12">
                     <label for="owner_involvement" class="form-label fw-semibold">Owner Involvement (high-level role description, hours per week, etc.)</label>
-                    <input type="text" class="form-control form-control-lg" id="owner_involvement" name="owner_involvement"  value="{{ form_data.owner_involvement if form_data else '' }}">
+                    <textarea class="form-control" id="owner_involvement" name="owner_involvement" rows="3">{{ form_data.owner_involvement if form_data else '' }}</textarea>
                   </div>
                 </div>
 
@@ -140,21 +140,25 @@
                 
                 <div class="mb-4">
                   <label for="cim_search_narrative_fit" class="form-label fw-semibold">Does the CIM fit your Search Narrative & your Search Narrative Question Guide?</label>
-                  <textarea class="form-control" id="cim_search_narrative_fit" name="cim_search_narrative_fit" rows="4">{{ form_data.cim_search_narrative_fit if form_data else '' }}</textarea>
+                  <select class="form-select form-select-lg" id="cim_search_narrative_fit" name="cim_search_narrative_fit" onchange="toggleSearchNarrative()">
+                    <option value="">Select...</option>
+                    <option value="Yes" {{ 'selected' if form_data and form_data.cim_search_narrative_fit == 'Yes' else '' }}>Yes</option>
+                    <option value="No" {{ 'selected' if form_data and form_data.cim_search_narrative_fit == 'No' else '' }}>No</option>
+                  </select>
                 </div>
 
-                <div class="mb-4">
-                  <label for="search_narrative_relation" class="form-label fw-semibold">1️⃣ How does this relate to your search narrative?</label>
+                <div class="mb-4" id="search_narrative_section" style="display: {{ 'block' if form_data and form_data.cim_search_narrative_fit == 'Yes' else 'none' }};">
+                  <label for="search_narrative_relation" class="form-label fw-semibold">How does this relate to your search narrative?</label>
                   <textarea class="form-control" id="search_narrative_relation" name="search_narrative_relation" rows="4">{{ form_data.search_narrative_relation if form_data else '' }}</textarea>
                 </div>
 
                 <div class="mb-4">
-                  <label for="deal_likes_dislikes" class="form-label fw-semibold">2️⃣ What do you like/don't like about the deal?</label>
+                  <label for="deal_likes_dislikes" class="form-label fw-semibold">What do you like/don't like about the deal?</label>
                   <textarea class="form-control" id="deal_likes_dislikes" name="deal_likes_dislikes" rows="4" >{{ form_data.deal_likes_dislikes if form_data else '' }}</textarea>
                 </div>
 
                 <div class="mb-4">
-                  <label for="deal_questions_concerns" class="form-label fw-semibold">3️⃣ What questions/concerns do you have about the deal?</label>
+                  <label for="deal_questions_concerns" class="form-label fw-semibold">What questions/concerns do you have about the deal?</label>
                   <textarea class="form-control" id="deal_questions_concerns" name="deal_questions_concerns" rows="4">{{ form_data.deal_questions_concerns if form_data else '' }}</textarea>
                 </div>
               </div>
@@ -185,8 +189,8 @@
 
               <!-- Action Buttons -->
               <div class="d-flex gap-3 justify-content-between flex-wrap">
-                <a href="/" class="btn btn-outline-secondary btn-lg px-5">Back to Home</a>
-                <button type="submit" class="btn btn-primary btn-lg px-5">Submit Information</button>
+                <a href="/" class="btn btn-outline-secondary rounded-pill btn-lg px-5">Back to Home</a>
+                <button type="submit" class="btn submit-btn rounded-pill btn-lg px-5">Submit Information</button>
               </div>
             </form>
           </div>
@@ -196,4 +200,34 @@
   </div>
 {% endblock %}
 
-{% block scripts %}{% endblock %}
+{% block scripts %}
+<script>
+function toggleSearchNarrative() {
+  const select = document.getElementById('cim_search_narrative_fit');
+  const section = document.getElementById('search_narrative_section');
+  
+  if (select.value === 'Yes') {
+    section.style.display = 'block';
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  toggleSearchNarrative();
+  
+  // Scroll to top if success message is present
+  const successAlert = document.querySelector('.alert-success');
+  if (successAlert) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Optional: Auto-hide success message after 10 seconds
+    setTimeout(function() {
+      const alert = bootstrap.Alert.getOrCreateInstance(successAlert);
+      alert.close();
+    }, 10000);
+  }
+});
+</script>
+{% endblock %}

@@ -2,8 +2,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from config import settings
-from database import create_tables
+from db import create_tables, alembic_manager
 from views import router
+import os
 
 # FastAPI app configuration
 app = FastAPI(
@@ -32,7 +33,19 @@ app.include_router(router)
 @app.on_event("startup")
 async def startup_event():
     """Initialize database tables on application startup"""
-    create_tables()
+    
+    # Check if Alembic auto-migration is enabled
+    use_alembic = os.getenv("USE_ALEMBIC", "false").lower() == "true"
+    
+    if use_alembic:
+        print("🔧 Using Alembic for database migrations...")
+        # Auto-initialize and migrate with Alembic
+        alembic_manager.auto_migrate("auto migration on startup")
+    else:
+        print("🔧 Using SQLAlchemy create_all for database setup...")
+        # Traditional SQLAlchemy create_all
+        create_tables()
+    
     print(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} started successfully!")
     print(f"📍 Server running on {settings.HOST}:{settings.PORT}")
     print(f"📖 API documentation available at /docs")

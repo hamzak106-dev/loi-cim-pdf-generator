@@ -1,5 +1,5 @@
 """
-Simple Celery configuration for LOI Questions PDF Generator
+Celery configuration for Business Acquisition PDF Generator
 """
 from celery import Celery
 import os
@@ -13,10 +13,10 @@ celery_app = Celery(
     "business_acquisition_tasks",
     broker=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
     backend=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
-    include=["tasks"]
+    include=["tasks.pdf_tasks"]
 )
 
-# Simple configuration
+# Configuration
 celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],

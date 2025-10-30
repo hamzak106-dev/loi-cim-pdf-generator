@@ -1,7 +1,7 @@
 """
 Database configuration and utilities for Business Acquisition PDF Generator
 """
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from config import settings
@@ -38,14 +38,14 @@ def create_tables():
     """
     Create all database tables
     """
-    from models import Base
+    from .models import Base
     Base.metadata.create_all(bind=engine)
 
 def drop_tables():
     """
     Drop all database tables (use with caution!)
     """
-    from models import Base
+    from .models import Base
     Base.metadata.drop_all(bind=engine)
 
 def get_db_info():
@@ -84,7 +84,6 @@ class DatabaseManager:
     def check_connection():
         """Check database connection"""
         try:
-            from sqlalchemy import text
             with engine.connect() as connection:
                 result = connection.execute(text("SELECT 1"))
                 return True, "Database connection successful"

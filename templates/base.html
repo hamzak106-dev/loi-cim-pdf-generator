@@ -8,10 +8,194 @@
     <!-- Bootstrap CSS -->
     <link href="/static/assets/css/bootstrap.min.css" rel="stylesheet">
     
+    <style>
+        /* Global Dark Theme */
+        body {
+            background-color: #000;
+            background-image:
+                radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.2), transparent 70%),
+                radial-gradient(circle at top left, rgba(13, 56, 114, 0.3), transparent 70%),
+                radial-gradient(circle at top right, rgba(13, 56, 114, 0.5), transparent 80%);
+            background-blend-mode: screen;
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-attachment: fixed;
+            min-height: 100vh;
+            color: #fff;
+        }
+        
+        .main-container {
+            min-height: 100vh;
+        }
+        
+        /* Card Styling */
+        .card {
+            background-color: rgba(255, 255, 255, 0.05);
+            background-image: radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.9), transparent 70%);
+            background-blend-mode: screen;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        
+        .card-header {
+            background-color: rgba(0, 0, 0, 0.3) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff !important;
+        }
+        
+        .card-body {
+            color: #fff;
+        }
+        
+        /* Form Controls */
+        .form-control,
+        .form-select {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+        option{
+            background-color: rgba(5, 13, 30, 0.8)
+
+        }
+        .form-control:focus,
+        .form-select:focus {
+            background-color: rgba(255, 255, 255, 0.15);
+            border-color: rgba(13, 56, 114, 0.8);
+            color: #fff;
+            box-shadow: 0 0 0 0.25rem rgba(13, 56, 114, 0.25);
+        }
+        
+        .form-control::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .input-group-text {
+            background-color: rgba(13, 56, 114, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+        
+        /* Labels */
+        .form-label {
+            color: #fff;
+            font-weight: 500;
+        }
+        
+        .form-text {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background-color: rgba(13, 56, 114, 0.9);
+            border-color: rgba(13, 56, 114, 1);
+            color: #fff;
+        }
+        
+        .btn-primary:hover {
+            background-color: rgba(13, 56, 114, 1);
+            border-color: rgba(13, 56, 114, 1);
+            color: #fff;
+        }
+        
+        .btn-outline-secondary {
+            border-color: rgba(255, 255, 255, 0.5);
+            color: #fff;
+        }
+        
+        .btn-outline-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: #fff;
+            color: #fff;
+        }
+        
+        .btn-light {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-color: #fff;
+            color: #000;
+        }
+        
+        .btn-light:hover {
+            background-color: transparent;
+            border-color: #fff;
+            color: #fff;
+        }
+        
+        .btn-outline-light {
+            border-color: rgba(255, 255, 255, 0.7);
+            color: #fff;
+        }
+        
+        .btn-outline-light:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: #fff;
+            color: #fff;
+        }
+        
+        /* Alerts */
+        .alert-success {
+            background-color: rgba(25, 135, 84, 0.2);
+            border-color: rgba(25, 135, 84, 0.5);
+            color: #75f5a7;
+        }
+        
+        .alert-danger {
+            background-color: rgba(220, 53, 69, 0.2);
+            border-color: rgba(220, 53, 69, 0.5);
+            color: #ff9999;
+        }
+        
+        /* Section Headers */
+        h1, h2, h3, h4, h5, h6 {
+            color: #fff;
+        }
+        
+        .border-bottom {
+            border-color: rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        /* Checkbox and Radio */
+        .form-check-input {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .form-check-input:checked {
+            background-color: rgba(13, 56, 114, 0.9);
+            border-color: rgba(13, 56, 114, 1);
+        }
+        
+        .form-check-label {
+            color: #fff;
+        }
+        
+        /* Terms Card */
+        .bg-light {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+        
+        /* Text Colors */
+        .text-muted {
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        .submit-btn{
+        background-color: #133872;
+        color: #fff;
+        border-color: white;
+    }
+    .submit-btn:hover{
+        background-color: white;
+        color: #133872;
+        font-weight: medium;
+        border-color: #133872;
+    }
+    </style>
 </head>
 <body>
     <div class="main-container">
-        <div class="container">
+        <div class="col-10 mx-auto">
             {% block content %}{% endblock %}
         </div>
     </div>
