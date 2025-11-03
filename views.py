@@ -140,29 +140,26 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                 "form_data": {k: form.get(k) for k in form.keys()}
             })
         
-        # Handle file uploads
+        # Handle file uploads - encode as base64 for cross-dyno transfer
         files_data = []
         files = form.getlist('files') if hasattr(form, 'getlist') else ([form.get('files')] if form.get('files') else [])
         
         for file in files:
             if hasattr(file, 'filename') and file.filename:
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1])
-                temp_path = temp_file.name
-                
                 try:
                     content = await file.read()
-                    with open(temp_path, 'wb') as f:
-                        f.write(content)
+                    # Encode file content as base64 for transfer to worker dyno
+                    import base64
+                    encoded_content = base64.b64encode(content).decode('utf-8')
                     
                     files_data.append({
-                        'file_path': temp_path,
+                        'file_content': encoded_content,  # Base64 encoded content
                         'filename': file.filename,
                         'content_type': file.content_type or 'application/octet-stream'
                     })
+                    print(f"📎 Prepared file for upload: {file.filename} ({len(content)} bytes)")
                 except Exception as e:
-                    print(f"Error saving file {file.filename}: {e}")
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
+                    print(f"Error reading file {file.filename}: {e}")
         
         # Trigger background processing
         process_submission_complete.delay(submission.id, files_data, form_type)

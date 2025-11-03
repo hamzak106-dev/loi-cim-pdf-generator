@@ -56,17 +56,33 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         if files_data and len(files_data) > 0:
             print(f"📁 Processing {len(files_data)} uploaded files...")
             try:
+                import base64
+                import tempfile
+                
                 file_info = files_data[0]
-                file_path = file_info.get('file_path')
+                file_content_b64 = file_info.get('file_content')
                 file_name = file_info.get('filename')
                 mime_type = file_info.get('content_type', 'application/octet-stream')
                 
-                if file_path and os.path.exists(file_path):
+                if file_content_b64 and file_name:
+                    # Decode base64 content and save to temporary file
+                    file_content = base64.b64decode(file_content_b64)
+                    
+                    # Create temporary file
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file_name)[1])
+                    temp_path = temp_file.name
+                    
+                    with open(temp_path, 'wb') as f:
+                        f.write(file_content)
+                    
+                    print(f"📝 Recreated file: {file_name} ({len(file_content)} bytes) at {temp_path}")
+                    
+                    # Upload to Google Drive
                     drive_uploader = create_drive_uploader(
                         folder_id=settings.GOOGLE_DRIVE_FOLDER_ID
                     )
                     
-                    upload_result = drive_uploader.upload_file(file_path, file_name, mime_type)
+                    upload_result = drive_uploader.upload_file(temp_path, file_name, mime_type)
                     uploaded_file_url = upload_result['shareable_url']
                     
                     submission.uploaded_file_url = uploaded_file_url
@@ -76,14 +92,14 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                     print(f"✅ User file uploaded to Google Drive: {file_name}")
                     print(f"📎 File URL: {uploaded_file_url}")
                     
-                    # Cleanup uploaded file
+                    # Cleanup temporary file
                     try:
-                        os.remove(file_path)
-                        print(f"🗑️ Cleaned up uploaded file")
+                        os.remove(temp_path)
+                        print(f"🗑️ Cleaned up temporary file")
                     except Exception as e:
-                        print(f"⚠️ Could not clean up uploaded file: {e}")
+                        print(f"⚠️ Could not clean up temporary file: {e}")
                 else:
-                    print(f"⚠️ File path not found or invalid")
+                    print(f"⚠️ File content or filename missing")
                     
             except Exception as e:
                 print(f"❌ Failed to upload user file to Drive: {e}")
