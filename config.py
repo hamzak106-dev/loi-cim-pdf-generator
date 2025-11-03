@@ -6,6 +6,8 @@ load_dotenv()
 
 class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:root@localhost/lol-pdf-db")
+    if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     APP_NAME: str = "Business Acquisition PDF Generator"
     APP_VERSION: str = "2.0.0"
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
@@ -18,6 +20,19 @@ class Settings:
     
     GOOGLE_DRIVE_FOLDER_ID: Optional[str] = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
     GOOGLE_DRIVE_CREDENTIALS_PATH: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_PATH", "service_account.json")
+    
+    # Google Service Account Credentials (for dynamic generation)
+    GOOGLE_SERVICE_ACCOUNT_TYPE: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_TYPE", "service_account")
+    GOOGLE_PROJECT_ID: Optional[str] = os.getenv("GOOGLE_PROJECT_ID")
+    GOOGLE_PRIVATE_KEY_ID: Optional[str] = os.getenv("GOOGLE_PRIVATE_KEY_ID")
+    GOOGLE_PRIVATE_KEY: Optional[str] = os.getenv("GOOGLE_PRIVATE_KEY")
+    GOOGLE_CLIENT_EMAIL: Optional[str] = os.getenv("GOOGLE_CLIENT_EMAIL")
+    GOOGLE_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_CLIENT_ID")
+    GOOGLE_AUTH_URI: str = os.getenv("GOOGLE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth")
+    GOOGLE_TOKEN_URI: str = os.getenv("GOOGLE_TOKEN_URI", "https://oauth2.googleapis.com/token")
+    GOOGLE_AUTH_PROVIDER_CERT_URL: str = os.getenv("GOOGLE_AUTH_PROVIDER_CERT_URL", "https://www.googleapis.com/oauth2/v1/certs")
+    GOOGLE_CLIENT_CERT_URL: Optional[str] = os.getenv("GOOGLE_CLIENT_CERT_URL")
+    GOOGLE_UNIVERSE_DOMAIN: str = os.getenv("GOOGLE_UNIVERSE_DOMAIN", "googleapis.com")
     
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))

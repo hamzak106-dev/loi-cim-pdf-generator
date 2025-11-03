@@ -63,7 +63,6 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                 
                 if file_path and os.path.exists(file_path):
                     drive_uploader = create_drive_uploader(
-                        credentials_path=settings.GOOGLE_DRIVE_CREDENTIALS_PATH or "service_account.json",
                         folder_id=settings.GOOGLE_DRIVE_FOLDER_ID
                     )
                     
@@ -98,11 +97,9 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         
         try:
             print(f"☁️ Uploading PDF to Google Drive...")
-            print(f"📁 Credentials path: {settings.GOOGLE_DRIVE_CREDENTIALS_PATH}")
             print(f"📂 Folder ID: {settings.GOOGLE_DRIVE_FOLDER_ID or 'Root folder'}")
             
             drive_uploader = create_drive_uploader(
-                credentials_path=settings.GOOGLE_DRIVE_CREDENTIALS_PATH or "service_account.json",
                 folder_id=settings.GOOGLE_DRIVE_FOLDER_ID
             )
             

@@ -3,24 +3,37 @@ Google Drive Service
 Handles file uploads to Google Drive
 """
 import os
-from typing import Optional
+from typing import Optional, Dict, Any
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
+from config import settings
 
 
 class GoogleDriveUploader:
-    def __init__(self, credentials_path: str, folder_id: Optional[str] = None):
-        self.credentials_path = credentials_path
+    def __init__(self, credentials_dict: Optional[Dict[str, Any]] = None, folder_id: Optional[str] = None):
+        """
+        Initialize Google Drive Uploader
+        
+        Args:
+            credentials_dict: Optional dict with service account credentials
+            folder_id: Optional Google Drive folder ID
+        """
+        self.credentials_dict = credentials_dict
         self.folder_id = folder_id
         self.service = None
         self._authenticate()
     
     def _authenticate(self):
+        """Authenticate using credentials from dictionary (env vars)"""
         try:
-            credentials = service_account.Credentials.from_service_account_file(
-                self.credentials_path,
+            # Use provided credentials dict or build from settings
+            if not self.credentials_dict:
+                self.credentials_dict = self._build_credentials_from_env()
+            
+            credentials = service_account.Credentials.from_service_account_info(
+                self.credentials_dict,
                 scopes=['https://www.googleapis.com/auth/drive']
             )
             self.service = build('drive', 'v3', credentials=credentials)
@@ -28,6 +41,29 @@ class GoogleDriveUploader:
         except Exception as e:
             print(f"❌ Google Drive authentication failed: {str(e)}")
             raise
+    
+    def _build_credentials_from_env(self) -> Dict[str, Any]:
+        """Build service account credentials dictionary from environment variables"""
+        # Handle private key formatting (replace literal \n with actual newlines)
+        private_key = settings.GOOGLE_PRIVATE_KEY
+        if private_key and "\\n" in private_key:
+            private_key = private_key.replace("\\n", "\n")
+        
+        credentials = {
+            "type": settings.GOOGLE_SERVICE_ACCOUNT_TYPE,
+            "project_id": settings.GOOGLE_PROJECT_ID,
+            "private_key_id": settings.GOOGLE_PRIVATE_KEY_ID,
+            "private_key": private_key,
+            "client_email": settings.GOOGLE_CLIENT_EMAIL,
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "auth_uri": settings.GOOGLE_AUTH_URI,
+            "token_uri": settings.GOOGLE_TOKEN_URI,
+            "auth_provider_x509_cert_url": settings.GOOGLE_AUTH_PROVIDER_CERT_URL,
+            "client_x509_cert_url": settings.GOOGLE_CLIENT_CERT_URL,
+            "universe_domain": settings.GOOGLE_UNIVERSE_DOMAIN
+        }
+        
+        return credentials
     
     def upload_file(self, file_path: str, file_name: Optional[str] = None, mime_type: Optional[str] = None) -> dict:
         """
@@ -188,16 +224,16 @@ class GoogleDriveUploader:
             return False
 
 
-def create_drive_uploader(credentials_path: str = "service_account.json", 
+def create_drive_uploader(credentials_dict: Optional[Dict[str, Any]] = None, 
                          folder_id: Optional[str] = None) -> GoogleDriveUploader:
     """
     Factory function to create GoogleDriveUploader instance
     
     Args:
-        credentials_path: Path to service account JSON file
+        credentials_dict: Optional dict with service account credentials (uses env vars if None)
         folder_id: Optional Google Drive folder ID
         
     Returns:
         GoogleDriveUploader instance
     """
-    return GoogleDriveUploader(credentials_path, folder_id)
+    return GoogleDriveUploader(credentials_dict, folder_id)
