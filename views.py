@@ -207,6 +207,11 @@ async def submission_success(request: Request, type: str = "LOI"):
 
 # ==================== ADMIN ROUTES ====================
 
+@router.get("/admin")
+async def admin_redirect():
+    return RedirectResponse(url="/admin/login")
+
+
 @router.get("/admin/login", response_class=HTMLResponse)
 async def admin_login_page(request: Request):
     """Admin login page"""
