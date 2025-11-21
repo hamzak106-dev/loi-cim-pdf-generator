@@ -108,7 +108,10 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         
         # Step 3: Upload PDF to Google Drive
         drive_url = None
-        file_prefix = "cim_overview" if form_type == "CIM" else "loi_overview"
+        if form_type == "CIM" or form_type == "CIM_TRAINING":
+            file_prefix = "cim_overview" if form_type == "CIM" else "cim_training_overview"
+        else:
+            file_prefix = "loi_overview"
         drive_file_name = f"{file_prefix}_{submission.full_name.replace(' ', '_')}_{submission.id}.pdf"
         
         try:

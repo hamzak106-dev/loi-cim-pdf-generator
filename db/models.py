@@ -2,7 +2,7 @@
 Database models for Business Acquisition PDF Generator
 Unified Form model with FormType enum
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, Enum as SQLEnum, ForeignKey
 from sqlalchemy.sql import func
 from .database import Base
 from datetime import datetime
@@ -14,6 +14,7 @@ class FormType(str, PyEnum):
     """Form type enumeration"""
     LOI = "LOI"
     CIM = "CIM"
+    CIM_TRAINING = "CIM_TRAINING"
 
 
 class Form(Base):
@@ -79,6 +80,12 @@ class Form(Base):
     is_processed = Column(Boolean, default=False, comment="Whether the submission has been processed")
     pdf_generated = Column(Boolean, default=False, comment="Whether PDF has been generated")
     email_sent = Column(Boolean, default=False, comment="Whether confirmation email has been sent")
+    
+    # Scheduling Fields
+    scheduled_at = Column(String(100), nullable=True, comment="Scheduled date")
+    time = Column(String(50), nullable=True, comment="Scheduled time")
+    meeting_host = Column(String(100), nullable=True, comment="Meeting host name")
+    scheduled_count = Column(Integer, default=0, comment="Number of times scheduled")
     
     def __repr__(self):
         return f'<Form {self.form_type.value} - {self.full_name} - ${self.purchase_price:,.0f}>'
@@ -291,3 +298,23 @@ class User(Base):
     def is_admin(self):
         """Check if user is an admin"""
         return self.user_type == 'admin'
+
+
+class FormReviewed(Base):
+    """
+    Model to track reviewed forms
+    """
+    __tablename__ = 'form_reviewed'
+    
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign Key to Form
+    form_id = Column(Integer, ForeignKey('forms.id'), nullable=False, unique=True, index=True, comment="Reference to the reviewed form")
+    
+    # Metadata
+    reviewed_at = Column(DateTime(timezone=True), server_default=func.now(), comment="When the form was reviewed")
+    reviewed_by = Column(String(100), nullable=True, comment="Name of the person who reviewed")
+    
+    def __repr__(self):
+        return f"<FormReviewed(form_id={self.form_id}, reviewed_at={self.reviewed_at})>"

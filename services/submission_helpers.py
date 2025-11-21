@@ -55,7 +55,12 @@ def create_submission_record(form_data: Dict[str, Any], form_type: str, db: Sess
         Form submission record
     """
     # Convert string form_type to FormType enum
-    form_type_enum = FormType.LOI if form_type == "LOI" else FormType.CIM
+    if form_type == "LOI":
+        form_type_enum = FormType.LOI
+    elif form_type == "CIM_TRAINING":
+        form_type_enum = FormType.CIM_TRAINING
+    else:
+        form_type_enum = FormType.CIM
     
     # Create unified Form record
     submission = Form(
@@ -96,11 +101,11 @@ def create_submission_record(form_data: Dict[str, Any], form_type: str, db: Sess
 
 def process_form_submission(form_data: Dict[str, Any], form_type: str, files_data: list = None) -> Tuple[bool, Any, str]:
     """
-    Unified function to process both LOI and CIM form submissions
+    Unified function to process LOI, CIM, and CIM_TRAINING form submissions
     
     Args:
         form_data: Form data dictionary
-        form_type: "LOI" or "CIM"
+        form_type: "LOI", "CIM", or "CIM_TRAINING"
         files_data: Optional list of uploaded files
         
     Returns:

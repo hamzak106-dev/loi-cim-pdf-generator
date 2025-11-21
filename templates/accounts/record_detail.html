@@ -44,6 +44,9 @@
           <a href="/admin/dashboard" class="btn btn-outline-light mb-2">← Back to Dashboard</a>
         </div>
         <div>
+          {% if is_reviewed %}
+          <span class="badge bg-success me-2" style="font-size: 1rem; padding: 8px 16px;">Reviewed</span>
+          {% endif %}
           {% if record.file_urls %}
           <a href="{{ record.file_urls }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary me-2">View PDF</a>
           {% endif %}
@@ -82,11 +85,17 @@
               <div class="detail-label">Purchase Price</div>
               <div class="detail-value">{{ record.formatted_purchase_price }}</div>
               
+              {% if form_type == 'LOI' %}
+              <div class="detail-label">Offer Price</div>
+              {% else %}
               <div class="detail-label">Annual Revenue</div>
+              {% endif %}
               <div class="detail-value">{{ record.formatted_revenue }}</div>
               
+              {% if form_type != 'LOI' %}
               <div class="detail-label">Average SDE</div>
               <div class="detail-value">{{ record.formatted_avg_sde if record.avg_sde else 'N/A' }}</div>
+              {% endif %}
               
               {% if form_type == 'CIM' and record.total_adjustments %}
               <div class="detail-label">Total Adjustments</div>
@@ -99,15 +108,17 @@
           
           <div class="row">
             <div class="col-md-6">
+              {% if form_type != 'LOI' %}
               <div class="detail-label">Seller Role</div>
               <div class="detail-value">{{ record.seller_role or 'N/A' }}</div>
+              {% endif %}
               
               <div class="detail-label">Reason for Selling</div>
               <div class="detail-value">{{ record.reason_for_selling or 'N/A' }}</div>
             </div>
             
             <div class="col-md-6">
-              {% if form_type == 'CIM' %}
+              {% if form_type == 'CIM' or form_type == 'CIM_TRAINING' %}
               <div class="detail-label">GM in Place</div>
               <div class="detail-value">{{ record.gm_in_place or 'N/A' }}</div>
               
@@ -134,16 +145,26 @@
           <div class="detail-label">Owner Involvement</div>
           <div class="detail-value">{{ record.owner_involvement or 'N/A' }}</div>
           
+          {% if form_type != 'LOI' %}
           <div class="detail-label">CIM Search Narrative Fit</div>
           <div class="detail-value">{{ record.cim_search_narrative_fit or 'N/A' }}</div>
           
           <div class="detail-label">Search Narrative Relation</div>
           <div class="detail-value" style="white-space: pre-wrap;">{{ record.search_narrative_relation or 'N/A' }}</div>
+          {% endif %}
           
+          {% if form_type == 'LOI' %}
+          <div class="detail-label">Key factors that impact valuation / multiple (what makes this deal strong or weak?)</div>
+          {% else %}
           <div class="detail-label">Deal Likes/Dislikes</div>
+          {% endif %}
           <div class="detail-value" style="white-space: pre-wrap;">{{ record.deal_likes_dislikes or 'N/A' }}</div>
           
+          {% if form_type == 'LOI' %}
+          <div class="detail-label">What leverage points do you see (red flags, risks, inconsistencies) and your negotiation angle or offer strategy?</div>
+          {% else %}
           <div class="detail-label">Deal Questions/Concerns</div>
+          {% endif %}
           <div class="detail-value" style="white-space: pre-wrap;">{{ record.deal_questions_concerns or 'N/A' }}</div>
         </div>
       </div>

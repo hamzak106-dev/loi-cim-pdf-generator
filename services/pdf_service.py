@@ -70,8 +70,12 @@ class PDFGenerationService:
             Path to generated PDF file
         """
         # Select field configuration based on form type
-        fields = self.CIM_FIELDS if form_type == "CIM" else self.LOI_FIELDS
-        narrative_sections = self.CIM_NARRATIVE_SECTIONS if form_type == "CIM" else self.LOI_NARRATIVE_SECTIONS
+        if form_type == "CIM" or form_type == "CIM_TRAINING":
+            fields = self.CIM_FIELDS
+            narrative_sections = self.CIM_NARRATIVE_SECTIONS
+        else:
+            fields = self.LOI_FIELDS
+            narrative_sections = self.LOI_NARRATIVE_SECTIONS
         
         # Prepare submission data as dictionary for template
         submission_dict = {}
