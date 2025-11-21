@@ -4,53 +4,223 @@
 
 {% block content %}
 <style>
-    .container{
-        width:100% !important;
-        max-width:100% !important;
-        padding:0 !important;
+    .index-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0 !important;
     }
-    .container-fluid {
-  min-height: 100vh;
-  background-color: #000;
-  background-image:
-    radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.2), transparent 70%),
-    radial-gradient(circle at top left, rgba(13, 56, 114, 0.3), transparent 70%),
-    radial-gradient(circle at top right, rgba(13, 56, 114, 0.5), transparent 80%);
-  background-blend-mode: screen;
-  background-repeat: no-repeat;
-  background-size: cover;
-}
+    
+    .index-container-fluid {
+        min-height: 100vh;
+        background-color: #000;
+        background-image:
+            radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.2), transparent 70%),
+            radial-gradient(circle at top left, rgba(13, 56, 114, 0.3), transparent 70%),
+            radial-gradient(circle at top right, rgba(13, 56, 114, 0.5), transparent 80%);
+        background-blend-mode: screen;
+        background-repeat: no-repeat;
+        background-size: cover;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+    }
 
-.btn-light:hover{
-  background-color:transparent !important;
-  border-color: #fff !important;
-  color:#fff !important;
-}
+    .index-card {
+        max-width: 800px;
+        width: 100%;
+        background-color: rgba(255, 255, 255, 0.05);
+        background-image: radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.9), transparent 70%);
+        background-blend-mode: screen;
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .index-header {
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 20px;
+        text-align: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .index-header h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        color: #fff;
+        font-weight: 600;
+    }
+
+    .index-content {
+        padding: 40px 30px;
+        text-align: center;
+    }
+
+    .index-welcome {
+        margin-bottom: 40px;
+    }
+
+    .index-welcome h3 {
+        color: #fff;
+        font-size: 1.75rem;
+        margin-bottom: 10px;
+        font-weight: 500;
+    }
+
+    .index-welcome p {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    .index-buttons {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .index-button-card {
+        flex: 1;
+        min-width: 200px;
+        max-width: 250px;
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        text-decoration: none;
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transition: all 0.3s ease;
+        text-align: center;
+    }
+
+    .index-button-card:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.4);
+        transform: translateY(-2px);
+        color: #fff;
+        text-decoration: none;
+    }
+
+    .index-button-card.highlighted {
+        border-color: #4a9eff;
+        background-color: rgba(74, 158, 255, 0.1);
+        box-shadow: 0 0 20px rgba(74, 158, 255, 0.3);
+    }
+
+    .index-button-card.highlighted:hover {
+        border-color: #5aaaff;
+        background-color: rgba(74, 158, 255, 0.15);
+        box-shadow: 0 0 25px rgba(74, 158, 255, 0.4);
+    }
+
+    .index-button-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 12px;
+        color: #fff;
+    }
+
+    .index-button-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background-color: rgba(13, 56, 114, 0.6);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        margin: 4px 0;
+        color: #fff;
+    }
+
+    .index-button-badge.secondary {
+        background-color: rgba(108, 117, 125, 0.6);
+    }
+
+    .live-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background-color: #ff0000;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.6;
+            transform: scale(1.1);
+        }
+    }
+
+    .index-button-text {
+        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.9);
+        margin-top: 4px;
+    }
+
+    @media (max-width: 768px) {
+        .index-buttons {
+            flex-direction: column;
+        }
+        
+        .index-button-card {
+            max-width: 100%;
+        }
+        
+        .index-content {
+            padding: 30px 20px;
+        }
+    }
 </style>
-<div class="container-fluid border-0 min-vh-100 d-flex justify-content-center align-items-center ">  
-  <div class="col-lg-6 col-md-8" style="max-width:600px !important; background-color:rgb(255,255,255,0.05); background-image: radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.9), transparent 70%); background-blend-mode: screen;">
-    <div class="shadow-lg border-0" 
-         style="backdrop-filter: blur(12px);">
-      
-      <div class="p-3 text-center bg-dark text-white">
-        <h1 class="h4 mb-0">Business Acquisition Services</h1>
-      </div>
 
-      <div class="p-3 text-center text-white py-5">
-        <h3 class="mb-5">Welcome!</h3>
-
-        <div class="d-flex justify-content-center gap-3 flex-wrap">
-          <a href="/business-form" class="btn btn-outline-light rounded-pill px-4 py-2">
-            LOI Form
-          </a>
-          <a href="/cim-form" class="btn btn-light rounded-pill px-4 py-2">
-            CIM Form
-          </a>
+<div class="index-container-fluid">
+    <div class="index-card">
+        <div class="index-header">
+            <h1>Business Acquisition Services</h1>
         </div>
-      </div>
 
+        <div class="index-content">
+            <div class="index-welcome">
+                <h3>Welcome!</h3>
+                <p>Select what you want to submit</p>
+            </div>
+
+            <div class="index-buttons">
+                <a href="/business-form" class="index-button-card">
+                    <div class="index-button-title">LOI Review</div>
+                    <span class="index-button-badge">
+                        <span class="live-indicator"></span>
+                        (Live Call)
+                    </span>
+                    <div class="index-button-text">with Evan</div>
+                </a>
+
+                <a href="/cim-form" class="index-button-card highlighted">
+                    <div class="index-button-title">CIM Review</div>
+                    <span class="index-button-badge">
+                        <span class="live-indicator"></span>
+                        (Live Call)
+                    </span>
+                    <div class="index-button-text">with Mitch or Ben</div>
+                </a>
+
+                <a href="/cim-training-form" class="index-button-card">
+                    <div class="index-button-title">CIM Review</div>
+                    <span class="index-button-badge secondary">(Training)</span>
+                    <div class="index-button-text">with Mitch</div>
+                </a>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 
 {% endblock %}

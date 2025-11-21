@@ -63,6 +63,15 @@ async def cim_form_page(request: Request):
     })
 
 
+@router.get("/cim-training-form", response_class=HTMLResponse)
+async def cim_training_form_page(request: Request):
+    """CIM Training Questions form page"""
+    return templates.TemplateResponse("cim_training.html", {
+        "request": request,
+        "page_title": "CIM Questions - Training"
+    })
+
+
 # ==================== UNIFIED SUBMISSION HANDLER ====================
 
 async def handle_form_submission(request: Request, form_type: str, template_name: str):
@@ -191,6 +200,12 @@ async def submit_loi_form(request: Request):
 async def submit_cim_form(request: Request):
     """Submit CIM Questions form"""
     return await handle_form_submission(request, "CIM", "cim_questions.html")
+
+
+@router.post("/submit-cim-training")
+async def submit_cim_training_form(request: Request):
+    """Submit CIM Training Questions form"""
+    return await handle_form_submission(request, "CIM", "cim_training.html")
 
 
 @router.get("/submission-success", response_class=HTMLResponse)

@@ -22,9 +22,7 @@ class PDFGenerationService:
             ("Industry", "industry", "Not specified"),
             ("Location", "location", "Not specified"),
             ("Purchase Price", "formatted_purchase_price", "Not specified"),
-            ("Revenue", "formatted_revenue", "Not specified"),
-            ("Avg SDE", "formatted_avg_sde", "Not specified"),
-            ("Seller Role", "seller_role", "Not specified"),
+            ("Offer Price", "formatted_revenue", "Not specified"),
             ("Reason for Selling", "reason_for_selling", "Not provided"),
             ("Owner Involvement", "owner_involvement", "Not provided"),
             ("Customer Concentration Risk", "customer_concentration_risk", "Not provided"),
@@ -48,10 +46,15 @@ class PDFGenerationService:
             ("Number of Employees", "number_of_employees", "Not specified"),
         ]
         
-        self.NARRATIVE_SECTIONS = [
+        self.LOI_NARRATIVE_SECTIONS = [
+            ("Key factors that impact valuation / multiple (what makes this deal strong or weak?)", "deal_likes_dislikes"),
+            ("What leverage points do you see (red flags, risks, inconsistencies) and your negotiation angle or offer strategy?", "deal_questions_concerns"),
+        ]
+        
+        self.CIM_NARRATIVE_SECTIONS = [
             ("Search Narrative Connection", "search_narrative_relation"),
             ("Deal Interest", "deal_likes_dislikes"),
-            (" Questions/Concerns", "deal_questions_concerns"),
+            ("Questions/Concerns", "deal_questions_concerns"),
         ]
     
     def generate_pdf(self, submission, form_type: str = "LOI") -> str:
@@ -68,6 +71,7 @@ class PDFGenerationService:
         """
         # Select field configuration based on form type
         fields = self.CIM_FIELDS if form_type == "CIM" else self.LOI_FIELDS
+        narrative_sections = self.CIM_NARRATIVE_SECTIONS if form_type == "CIM" else self.LOI_NARRATIVE_SECTIONS
         
         # Prepare submission data as dictionary for template
         submission_dict = {}
@@ -81,7 +85,7 @@ class PDFGenerationService:
             submission_dict[attr_name] = value
         
         # Add narrative sections
-        for section_title, attr_name in self.NARRATIVE_SECTIONS:
+        for section_title, attr_name in narrative_sections:
             value = getattr(submission, attr_name, None)
             submission_dict[attr_name] = value if value else "Not provided"
         
@@ -97,7 +101,7 @@ class PDFGenerationService:
             form_type=form_type,
             submission=submission_dict,
             fields=fields,
-            narrative_sections=self.NARRATIVE_SECTIONS,
+            narrative_sections=narrative_sections,
             company_name=self.company_name,
             timestamp=timestamp
         )
