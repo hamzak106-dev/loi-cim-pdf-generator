@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.database import Base
-from db.models import Form, FormType, LOIQuestion, CIMQuestion, User
+from db.models import Form, FormType, LOIQuestion, CIMQuestion, User, FormReviewed
 
 # add your model's MetaData object here
 # for 'autogenerate' support

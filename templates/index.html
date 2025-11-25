@@ -11,20 +11,20 @@
     }
     
     .index-container-fluid {
-        min-height: 100vh;
-        background-color: #000;
-        background-image:
-            radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.2), transparent 70%),
-            radial-gradient(circle at top left, rgba(13, 56, 114, 0.3), transparent 70%),
-            radial-gradient(circle at top right, rgba(13, 56, 114, 0.5), transparent 80%);
-        background-blend-mode: screen;
-        background-repeat: no-repeat;
-        background-size: cover;
+  min-height: 100vh;
+  background-color: #000;
+  background-image:
+    radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.2), transparent 70%),
+    radial-gradient(circle at top left, rgba(13, 56, 114, 0.3), transparent 70%),
+    radial-gradient(circle at top right, rgba(13, 56, 114, 0.5), transparent 80%);
+  background-blend-mode: screen;
+  background-repeat: no-repeat;
+  background-size: cover;
         display: flex;
         justify-content: center;
         align-items: center;
         padding: 20px;
-    }
+}
 
     .index-card {
         max-width: 800px;
@@ -179,20 +179,20 @@
         .index-content {
             padding: 30px 20px;
         }
-    }
+}
 </style>
 
 <div class="index-container-fluid">
     <div class="index-card">
         <div class="index-header">
             <h1>Business Acquisition Services</h1>
-        </div>
+      </div>
 
         <div class="index-content">
             <div class="index-welcome">
                 <h3>Welcome!</h3>
-                <p>Select what you want to submit</p>
-            </div>
+          <p>Select what you want to submit</p>
+        </div>
 
             <div class="index-buttons">
                 <a href="/business-form" class="index-button-card">
@@ -202,7 +202,7 @@
                         (Live Call)
                     </span>
                     <div class="index-button-text">with Evan</div>
-                </a>
+          </a>
 
                 <a href="/cim-form" class="index-button-card highlighted">
                     <div class="index-button-title">CIM Review</div>
@@ -211,16 +211,16 @@
                         (Live Call)
                     </span>
                     <div class="index-button-text">with Mitch or Ben</div>
-                </a>
+          </a>
 
                 <a href="/cim-training-form" class="index-button-card">
                     <div class="index-button-title">CIM Review</div>
                     <span class="index-button-badge secondary">(Training)</span>
                     <div class="index-button-text">with Mitch</div>
-                </a>
-            </div>
+          </a>
         </div>
     </div>
+  </div>
 </div>
 
 {% endblock %}

@@ -9,10 +9,17 @@
     </style>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Header with Logo -->
     <div class="pdf-header">
-        <h1>{{ form_type }} Overview</h1>
-        <p>Professional Investment Opportunity Report</p>
+        {% if logo_path %}
+        <div class="logo-container">
+            <img src="{{ logo_path }}" alt="Logo" class="pdf-logo" />
+        </div>
+        {% endif %}
+        <div class="header-text">
+            <h1>{{ form_type }} Overview</h1>
+            <p>Professional Investment Opportunity Report</p>
+        </div>
     </div>
 
     <!-- Business Overview Section -->

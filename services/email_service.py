@@ -19,7 +19,7 @@ class EmailService:
         self.password = settings.EMAIL_PASSWORD
         self.from_email = settings.FROM_EMAIL
     
-    async def send_confirmation_email_with_pdf(self, submission, pdf_path: str, form_type: str = "LOI") -> bool:
+    def send_confirmation_email_with_pdf(self, submission, pdf_path: str, form_type: str = "LOI") -> bool:
         """
         Send confirmation email with PDF attachment
         
@@ -32,27 +32,28 @@ class EmailService:
             bool: True if email sent successfully, False otherwise
         """
         try:
+            print("email services, :::::::::::::::::")
             msg = MIMEMultipart()
             msg['From'] = self.from_email
             msg['To'] = submission.email
-            subject_type = "LOI Questions" if form_type == "LOI" else "CIM Questions"
+            subject_type = "LOI Review"
+            if form_type == "CIM":
+                subject_type = "CIM Review"
+            elif form_type == "CIM_TRAINING":
+                subject_type = "CIM Training Review"
+            else:
+                subject_type = "LOI Questions"
             msg['Subject'] = f"{subject_type} Analysis Report - {submission.full_name}"
-            
+            title_message = "Thank you for filling this out. Your live call will be reviewed at scheduled_time."
+            if form_type == "CIM_TRAINING":
+                title_message = "Thank you for filling this out. Your review will may take 3 to 5 business days."
             body = f"""
             Dear {submission.full_name},
             
-            Thank you for submitting your {subject_type}. Please find your professional analysis report attached.
-            
-            Submission Details:
-            • Purchase Price: {submission.formatted_purchase_price}
-            • Annual Revenue: {submission.formatted_revenue}
-            • Industry: {submission.industry or 'Not specified'}
-            • Location: {submission.location or 'Not specified'}
-            
-            The attached PDF contains a comprehensive analysis of your business opportunity.
+            {title_message}
             
             Best regards,
-            Business Acquisition Services Team
+            Your Ace Team
             """
             
             msg.attach(MIMEText(body, 'plain'))

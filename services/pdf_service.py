@@ -3,6 +3,8 @@ PDF Generation Service
 Handles PDF creation using WeasyPrint and HTML templates
 """
 import tempfile
+import os
+from pathlib import Path
 from datetime import datetime
 from weasyprint import HTML
 from jinja2 import Environment, FileSystemLoader
@@ -15,6 +17,18 @@ class PDFGenerationService:
         
         # Setup Jinja2 environment for templates
         self.jinja_env = Environment(loader=FileSystemLoader('templates'))
+        
+        # Get logo path - WeasyPrint needs absolute path
+        project_root = Path(__file__).parent.parent
+        logo_path = project_root / "static" / "assets" / "image" / "aa-logo.png"
+        if logo_path.exists():
+            # Use absolute path for WeasyPrint (it handles file:// automatically)
+            abs_path = logo_path.absolute()
+            # Convert to file:// URL format for WeasyPrint
+            self.logo_path = abs_path.as_uri()
+        else:
+            self.logo_path = None
+            print(f"⚠️  Logo not found at: {logo_path}")
         
         # Define field configurations for different form types
         self.LOI_FIELDS = [
@@ -107,7 +121,8 @@ class PDFGenerationService:
             fields=fields,
             narrative_sections=narrative_sections,
             company_name=self.company_name,
-            timestamp=timestamp
+            timestamp=timestamp,
+            logo_path=self.logo_path
         )
         
         # Generate PDF from HTML using WeasyPrint
@@ -115,7 +130,9 @@ class PDFGenerationService:
         pdf_path = temp_file.name
         temp_file.close()
         
-        HTML(string=html_content).write_pdf(pdf_path)
+        # Generate PDF with base_url to resolve relative paths
+        base_url = str(Path(__file__).parent.parent.absolute())
+        HTML(string=html_content, base_url=base_url).write_pdf(pdf_path)
         
         return pdf_path
     
