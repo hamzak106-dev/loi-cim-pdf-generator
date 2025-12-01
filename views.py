@@ -76,6 +76,17 @@ async def cim_training_form_page(request: Request):
     })
 
 
+@router.get("/calendar", response_class=HTMLResponse)
+async def calendar_page(request: Request, form_type: Optional[str] = None, host: Optional[str] = None):
+    """Calendar page for scheduling calls"""
+    return templates.TemplateResponse("calendar.html", {
+        "request": request,
+        "page_title": "Schedule a Live Call",
+        "form_type": form_type or "LOI Call",
+        "host": host or "Evan"
+    })
+
+
 # ==================== UNIFIED SUBMISSION HANDLER ====================
 
 async def handle_form_submission(request: Request, form_type: str, template_name: str):

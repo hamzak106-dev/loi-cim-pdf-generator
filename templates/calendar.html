@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule a Live Call{% endblock %}
+
+{% block scripts %}
+<style>
+.custom-calendar {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: rgba(255, 255, 255, 0.05);
+  background-image: radial-gradient(circle at bottom right, rgba(13, 56, 114, 0.9), transparent 70%);
+  background-blend-mode: screen;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  background: linear-gradient(135deg, rgba(13, 56, 114, 0.9) 0%, rgba(26, 90, 158, 0.9) 100%);
+  color: #fff;
+  border-radius: 8px 8px 0 0;
+}
+
+.calendar-nav-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 8px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.calendar-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.calendar-month-year {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  padding: 8px;
+}
+
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  padding: 10px;
+  background-color: transparent;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.calendar-day:hover {
+  background-color: rgba(13, 56, 114, 0.3);
+  border-color: rgba(13, 56, 114, 0.8);
+  color: #fff;
+}
+
+.calendar-day.other-month {
+  color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.calendar-day.today {
+  background-color: rgba(13, 56, 114, 0.8);
+  color: #fff;
+  font-weight: 600;
+  border-color: rgba(13, 56, 114, 1);
+}
+
+.calendar-day.has-event {
+  background-color: rgba(255, 193, 7, 0.2);
+  border-color: rgba(255, 193, 7, 0.5);
+  position: relative;
+}
+
+.calendar-day.has-event::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  background-color: #ffc107;
+  border-radius: 50%;
+}
+
+.calendar-day.selected {
+  background-color: rgba(13, 56, 114, 0.9);
+  color: #fff;
+  border-color: rgba(13, 56, 114, 1);
+  font-weight: 600;
+}
+
+.calendar-events {
+  padding: 15px;
+  max-height: 300px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin-top: 20px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 0 0 8px 8px;
+}
+
+.event-item {
+  padding: 12px;
+  margin-bottom: 10px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid rgba(13, 56, 114, 0.9);
+  border-radius: 4px;
+}
+
+.event-time {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+}
+
+.event-title {
+  font-weight: 500;
+  color: #fff;
+  margin-top: 3px;
+}
+
+.no-events {
+  text-align: center;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.6);
+}
+</style>
+<script>
+// Custom Calendar Component
+class CustomCalendar {
+  constructor(containerId, options = {}) {
+    this.container = document.getElementById(containerId);
+    this.currentDate = options.initialDate || new Date();
+    this.selectedDate = null;
+    this.events = options.events || [];
+    this.onDateSelect = options.onDateSelect || null;
+    this.formType = options.formType || 'LOI Call';
+    this.host = options.host || 'Evan';
+    
+    this.monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+    this.weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    this.render();
+  }
+  
+  render() {
+    const year = this.currentDate.getFullYear();
+    const month = this.currentDate.getMonth();
+    
+    let html = `
+      <div class="calendar-header">
+        <button class="calendar-nav-btn" onclick="window.calendarInstance.prevMonth()">‹ Prev</button>
+        <div class="calendar-month-year">${this.monthNames[month]} ${year}</div>
+        <button class="calendar-nav-btn" onclick="window.calendarInstance.nextMonth()">Next ›</button>
+      </div>
+      <div class="calendar-weekdays">
+        ${this.weekdayNames.map(day => `<div class="calendar-weekday">${day}</div>`).join('')}
+      </div>
+      <div class="calendar-days">
+        ${this.renderDays()}
+      </div>
+    `;
+    
+    this.container.innerHTML = html;
+    this.attachDayClickListeners();
+  }
+  
+  renderDays() {
+    const year = this.currentDate.getFullYear();
+    const month = this.currentDate.getMonth();
+    
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    
+    const today = new Date();
+    const isToday = (date) => {
+      return date.getDate() === today.getDate() &&
+             date.getMonth() === today.getMonth() &&
+             date.getFullYear() === today.getFullYear();
+    };
+    
+    const hasEvent = (date) => {
+      return this.events.some(event => {
+        const eventDate = new Date(event.date);
+        return eventDate.getDate() === date.getDate() &&
+               eventDate.getMonth() === date.getMonth() &&
+               eventDate.getFullYear() === date.getFullYear();
+      });
+    };
+    
+    let days = [];
+    
+    // Previous month's days
+    const prevMonth = new Date(year, month, 0);
+    const prevMonthDays = prevMonth.getDate();
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      const date = new Date(year, month - 1, prevMonthDays - i);
+      days.push(`<div class="calendar-day other-month" data-date="${date.toISOString()}">${prevMonthDays - i}</div>`);
+    }
+    
+    // Current month's days
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const classes = ['calendar-day'];
+      if (isToday(date)) classes.push('today');
+      if (hasEvent(date)) classes.push('has-event');
+      if (this.selectedDate && 
+          this.selectedDate.getDate() === date.getDate() &&
+          this.selectedDate.getMonth() === date.getMonth() &&
+          this.selectedDate.getFullYear() === date.getFullYear()) {
+        classes.push('selected');
+      }
+      
+      days.push(`<div class="${classes.join(' ')}" data-date="${date.toISOString()}">${day}</div>`);
+    }
+    
+    // Next month's days
+    const remainingCells = 42 - days.length; // 6 rows * 7 days
+    for (let day = 1; day <= remainingCells; day++) {
+      const date = new Date(year, month + 1, day);
+      days.push(`<div class="calendar-day other-month" data-date="${date.toISOString()}">${day}</div>`);
+    }
+    
+    return days.join('');
+  }
+  
+  attachDayClickListeners() {
+    const dayElements = this.container.querySelectorAll('.calendar-day:not(.other-month)');
+    dayElements.forEach(dayEl => {
+      dayEl.addEventListener('click', () => {
+        const dateStr = dayEl.getAttribute('data-date');
+        const date = new Date(dateStr);
+        this.selectDate(date);
+      });
+    });
+  }
+  
+  selectDate(date) {
+    this.selectedDate = date;
+    this.render();
+    
+    if (this.onDateSelect) {
+      this.onDateSelect(date, this.getEventsForDate(date));
+    }
+  }
+  
+  getEventsForDate(date) {
+    return this.events.filter(event => {
+      const eventDate = new Date(event.date);
+      return eventDate.getDate() === date.getDate() &&
+             eventDate.getMonth() === date.getMonth() &&
+             eventDate.getFullYear() === date.getFullYear();
+    });
+  }
+  
+  prevMonth() {
+    this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
+    this.render();
+  }
+  
+  nextMonth() {
+    this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
+    this.render();
+  }
+  
+  setEvents(events) {
+    this.events = events;
+    this.render();
+  }
+}
+
+// Initialize calendar when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  const formType = '{{ form_type }}';
+  const host = '{{ host }}';
+  
+  window.calendarInstance = new CustomCalendar('customCalendarContainer', {
+    formType: formType,
+    host: host,
+    events: [], // Will be populated later with event data
+    onDateSelect: (date, events) => {
+      const eventsContainer = document.getElementById('calendarEvents');
+      const eventsList = document.getElementById('eventsList');
+      
+      if (events.length > 0) {
+        eventsList.innerHTML = events.map(event => `
+          <div class="event-item">
+            <div class="event-time">${event.time || 'All day'}</div>
+            <div class="event-title">${event.title}</div>
+          </div>
+        `).join('');
+        eventsContainer.style.display = 'block';
+      } else {
+        eventsList.innerHTML = '<div class="no-events">No events scheduled for this date. You can add events here later.</div>';
+        eventsContainer.style.display = 'block';
+        // You can add functionality here to create a new event for the selected date
+        console.log('Selected date:', date, 'No events. Can create new event here.');
+      }
+    }
+  });
+});
+</script>
+{% endblock %}
+
+{% block content %}
+
+  <div class="container py-2">
+    <div class="row justify-content-center">
+      <div class="col-lg-12">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-white border-0 pt-4 pb-3">
+            <h2 class="text-center mb-2">Schedule a Live Call</h2>
+            <p class="text-center text-muted mb-0">{{ form_type }}{% if host %} - {{ host }}{% endif %}</p>
+          </div>
+          
+          <div class="card-body p-4 p-md-5">
+            <div class="mb-3">
+              <a href="javascript:history.back()" class="btn btn-outline-secondary rounded-pill">← Back</a>
+            </div>
+            <div id="customCalendarContainer" class="custom-calendar"></div>
+            <div id="calendarEvents" class="calendar-events" style="display: none;">
+              <h6 class="mb-3">Events for selected date:</h6>
+              <div id="eventsList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}
+
