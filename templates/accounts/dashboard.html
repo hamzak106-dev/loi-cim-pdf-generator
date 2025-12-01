@@ -111,12 +111,28 @@
         <h2>Admin Dashboard</h2>
         <div>
           <span class="text-muted me-3">Welcome, {{ admin_name }}</span>
+          <div class="btn-group me-2">
+            <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-calendar-event"></i> Meeting Scheduler
+            </button>
+            <ul class="dropdown-menu">
+              <li>
+                <a class="dropdown-item" href="#" onclick="scheduleMeeting('LOI Call', 'Evan'); return false;">
+                  LOI Call (Host: Evan)
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="#" onclick="scheduleMeeting('CIM Call', null); return false;">
+                  CIM Call
+                </a>
+              </li>
+            </ul>
+          </div>
           <a href="/admin/logout" class="btn btn-outline-light">Logout</a>
         </div>
       </div>
     </div>
   </div>
-  
   <!-- Statistics Cards -->
   <div class="row mb-4">
     <div class="col-md-2">
@@ -343,6 +359,345 @@
 
 {% block scripts %}
 <script>
+function scheduleMeeting(formType, host) {
+  if (formType === 'CIM Call' && !host) {
+    // Show host selection modal for CIM Call
+    showHostSelectionModal(formType);
+  } else {
+    // Redirect to Google Calendar creation
+    redirectToGoogleCalendar(formType, host);
+  }
+}
+
+function showHostSelectionModal(formType) {
+  // Create a simple modal for host selection
+  const modal = `
+    <div class="modal fade" id="hostSelectionModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content" style="background-color: rgba(5, 13, 30, 0.95); color: #fff;">
+          <div class="modal-header">
+            <h5 class="modal-title">Select Host for CIM Call</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-grid gap-2">
+              <button class="btn btn-primary" onclick="selectHost('Ben')">Ben</button>
+              <button class="btn btn-primary" onclick="selectHost('Mitch')">Mitch</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Remove existing modal if any
+  const existing = document.getElementById('hostSelectionModal');
+  if (existing) existing.remove();
+  
+  // Add modal to body
+  document.body.insertAdjacentHTML('beforeend', modal);
+  
+  // Show modal
+  const modalElement = new bootstrap.Modal(document.getElementById('hostSelectionModal'));
+  modalElement.show();
+  
+  // Store form type globally
+  window.selectedFormType = formType;
+}
+
+function selectHost(host) {
+  const formType = window.selectedFormType || 'CIM Call';
+  bootstrap.Modal.getInstance(document.getElementById('hostSelectionModal')).hide();
+  redirectToGoogleCalendar(formType, host);
+}
+
+function redirectToGoogleCalendar(formType, host) {
+  // Show loader
+  showRedirectLoader();
+  
+  // Create event in Google Calendar via API, then redirect to edit it
+  fetch('/admin/meetings/create-draft', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      form_type: formType,
+      host: host
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success && data.eventLink) {
+      // Store event ID in sessionStorage for auto-sync when returning
+      sessionStorage.setItem('pendingEventSync', data.eventId);
+      sessionStorage.setItem('pendingEventLink', data.eventLink);
+      sessionStorage.setItem('pendingEventTime', Date.now().toString());
+      
+      // Update loader message
+      updateLoaderMessage('Redirecting to Google Calendar...');
+      
+      // Small delay to show message, then redirect
+      setTimeout(() => {
+        // Hide loader before redirecting (so it doesn't persist)
+        hideRedirectLoader();
+        // Redirect to Google Calendar in the same window
+        window.location.href = data.eventLink;
+      }, 800);
+    } else {
+      hideRedirectLoader();
+      alert('Error creating draft event: ' + (data.error || 'Unknown error'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    hideRedirectLoader();
+    alert('Error creating meeting draft');
+  });
+}
+
+function showRedirectLoader() {
+  const loader = `
+    <div id="redirectLoader" class="modal fade show" style="display: block; background-color: rgba(0,0,0,0.7);" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background-color: rgba(5, 13, 30, 0.95); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);">
+          <div class="modal-body text-center py-4">
+            <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <h5 id="loaderMessage">Creating draft event...</h5>
+            <p class="text-muted mb-0">Please wait</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', loader);
+}
+
+function updateLoaderMessage(message) {
+  const messageEl = document.getElementById('loaderMessage');
+  if (messageEl) {
+    messageEl.textContent = message;
+  }
+}
+
+function hideRedirectLoader() {
+  const loader = document.getElementById('redirectLoader');
+  if (loader) {
+    loader.remove();
+  }
+}
+
+// Check for pending event sync when page loads or is shown (handles back button)
+function initializeSyncCheck() {
+  // Clear any stuck loaders first
+  hideRedirectLoader();
+  // Small delay to ensure page is fully loaded
+  setTimeout(() => {
+    checkForPendingSync();
+  }, 300);
+}
+
+// Handle initial page load
+document.addEventListener('DOMContentLoaded', initializeSyncCheck);
+
+// Handle back/forward navigation (browser cache)
+window.addEventListener('pageshow', function(event) {
+  // event.persisted is true when page is loaded from cache (back button)
+  if (event.persisted) {
+    console.log('Page loaded from cache (back button), checking for sync...');
+    initializeSyncCheck();
+  }
+});
+
+// Also check when page becomes visible (handles tab switching)
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden) {
+    // Page is now visible, check for pending sync
+    const pendingEventId = sessionStorage.getItem('pendingEventSync');
+    if (pendingEventId) {
+      console.log('Page became visible, checking for sync...');
+      setTimeout(() => {
+        checkForPendingSync();
+      }, 500);
+    }
+  }
+});
+
+// Track if sync is already in progress to prevent duplicate syncs
+let syncInProgress = false;
+
+function checkForPendingSync() {
+  // Prevent duplicate sync attempts
+  if (syncInProgress) {
+    console.log('Sync already in progress, skipping...');
+    return;
+  }
+  
+  const pendingEventId = sessionStorage.getItem('pendingEventSync');
+  const pendingEventTime = sessionStorage.getItem('pendingEventTime');
+  
+  console.log('Checking for pending sync:', { pendingEventId, pendingEventTime });
+  
+  if (pendingEventId) {
+    // Check if enough time has passed (at least 2 seconds since redirect)
+    const currentTime = Date.now();
+    const eventTime = pendingEventTime ? parseInt(pendingEventTime) : 0;
+    const timeDiff = currentTime - eventTime;
+    
+    console.log('Time difference:', timeDiff, 'ms');
+    
+    // Only sync if at least 2 seconds have passed (user likely edited the event)
+    if (timeDiff > 2000) {
+      console.log('Pending event sync detected, starting sync for:', pendingEventId);
+      syncInProgress = true; // Mark as in progress
+      // Show sync message and auto-sync
+      showSyncMessage(pendingEventId);
+      // Auto-sync after a short delay
+      setTimeout(() => {
+        syncEvent(pendingEventId);
+      }, 800);
+    } else {
+      // Too soon, might be a page refresh - clear it
+      console.log('Sync check too soon, clearing pending sync');
+      sessionStorage.removeItem('pendingEventSync');
+      sessionStorage.removeItem('pendingEventLink');
+      sessionStorage.removeItem('pendingEventTime');
+    }
+  } else {
+    console.log('No pending sync found');
+  }
+}
+
+function showSyncMessage(eventId) {
+  // Remove existing alert if any
+  const existing = document.getElementById('syncAlert');
+  if (existing) existing.remove();
+  
+  const message = `
+    <div id="syncAlert" class="alert alert-info alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 400px; max-width: 500px;">
+      <strong>🔄 Syncing Event...</strong><br>
+      <small>Please wait while we sync your Google Calendar event to the database.</small>
+      <div class="spinner-border spinner-border-sm ms-2" role="status" style="width: 1rem; height: 1rem;">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" onclick="sessionStorage.removeItem('pendingEventSync'); sessionStorage.removeItem('pendingEventLink'); sessionStorage.removeItem('pendingEventTime');"></button>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', message);
+}
+
+function syncEvent(eventId) {
+  console.log('Starting sync for event:', eventId);
+  
+  // Update alert to show syncing
+  const alert = document.getElementById('syncAlert');
+  if (alert) {
+    alert.innerHTML = `
+      <strong>🔄 Syncing Event...</strong><br>
+      <small>Please wait while we sync your Google Calendar event to the database.</small>
+      <div class="spinner-border spinner-border-sm ms-2" role="status" style="width: 1rem; height: 1rem;">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+  }
+  
+  fetch(`/admin/meetings/sync/${eventId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  })
+  .then(response => {
+    console.log('Sync response status:', response.status);
+    if (!response.ok) {
+      return response.json().then(err => {
+        console.error('Sync error response:', err);
+        return Promise.reject(err);
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    console.log('Sync response data:', data);
+    
+    // Reset sync in progress flag
+    syncInProgress = false;
+    
+    // Clear the session storage
+    sessionStorage.removeItem('pendingEventSync');
+    sessionStorage.removeItem('pendingEventLink');
+    sessionStorage.removeItem('pendingEventTime');
+    
+    // Close the sync alert
+    if (alert) {
+      bootstrap.Alert.getOrCreateInstance(alert).close();
+    }
+    
+    if (data.success) {
+      // Show success message
+      const successMsg = `
+        <div class="alert alert-success alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 500px;">
+          <strong>✅ Success!</strong><br>
+          <small>Meeting synced to database successfully. Refreshing page in 3 seconds...</small>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', successMsg);
+      
+      // Reload page after 3 seconds to show updated data
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } else {
+      // Show error message
+      const errorMsg = `
+        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 500px;">
+          <strong>❌ Error!</strong><br>
+          <small>${data.error || 'Failed to sync meeting'}</small>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', errorMsg);
+      setTimeout(() => {
+        const msg = document.querySelector('.alert-danger');
+        if (msg) bootstrap.Alert.getOrCreateInstance(msg).close();
+      }, 5000);
+    }
+  })
+  .catch(error => {
+    console.error('Sync error:', error);
+    
+    // Reset sync in progress flag
+    syncInProgress = false;
+    
+    // Clear session storage on error
+    sessionStorage.removeItem('pendingEventSync');
+    sessionStorage.removeItem('pendingEventLink');
+    sessionStorage.removeItem('pendingEventTime');
+    
+    if (alert) {
+      bootstrap.Alert.getOrCreateInstance(alert).close();
+    }
+    
+    const errorMsg = error.error || error.message || 'Unknown error';
+    const errorAlert = `
+      <div class="alert alert-danger alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 500px;">
+        <strong>❌ Error!</strong><br>
+        <small>Failed to sync meeting: ${errorMsg}</small>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', errorAlert);
+    setTimeout(() => {
+      const msg = document.querySelector('.alert-danger');
+      if (msg) bootstrap.Alert.getOrCreateInstance(msg).close();
+    }, 5000);
+  });
+}
+
 function filterTable() {
   const input = document.getElementById('search-input');
   const filter = input.value.toUpperCase();

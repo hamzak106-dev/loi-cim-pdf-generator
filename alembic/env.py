@@ -5,9 +5,18 @@ from sqlalchemy import pool
 
 from alembic import context
 
+# Import config to get database URL
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import settings
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Override sqlalchemy.url with our settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -21,7 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.database import Base
-from db.models import Form, FormType, LOIQuestion, CIMQuestion, User, FormReviewed
+from db.models import Form, FormType, LOIQuestion, CIMQuestion, User, FormReviewed, MeetScheduler, MeetingType
 
 # add your model's MetaData object here
 # for 'autogenerate' support

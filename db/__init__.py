@@ -11,7 +11,7 @@ from .database import (
     get_db_info,
     DatabaseManager
 )
-from .models import Form, FormType, LOIQuestion, CIMQuestion, BusinessAcquisition, User, FormReviewed
+from .models import Form, FormType, LOIQuestion, CIMQuestion, BusinessAcquisition, User, FormReviewed, MeetScheduler, MeetingType, MeetingInstance, MeetingRegistration
 from .alembic_manager import alembic_manager, AlembicManager
 
 __all__ = [
@@ -30,6 +30,10 @@ __all__ = [
     'BusinessAcquisition',
     'User',
     'FormReviewed',
+    'MeetScheduler',
+    'MeetingType',
+    'MeetingInstance',
+    'MeetingRegistration',
     'alembic_manager',
     'AlembicManager',
 ]

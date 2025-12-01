@@ -1,0 +1,604 @@
+{% extends "base.html" %}
+
+{% block title %}Meeting Scheduler - Admin Dashboard{% endblock %}
+
+{% block content %}
+<style>
+  .calendar-container {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .fc {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #fff;
+  }
+  
+  .fc-header-toolbar {
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+  }
+  
+  .fc-button {
+    background-color: rgba(13, 56, 114, 0.9) !important;
+    border-color: rgba(13, 56, 114, 1) !important;
+    color: #fff !important;
+  }
+  
+  .fc-button:hover {
+    background-color: rgba(13, 56, 114, 1) !important;
+  }
+  
+  .fc-event {
+    cursor: pointer;
+  }
+  
+  .modal-content {
+    background-color: rgba(5, 13, 30, 0.95);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .modal-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .modal-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .btn-close {
+    filter: invert(1);
+  }
+</style>
+
+<div class="container-fluid py-4">
+  <!-- Header -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <h2>Meeting Scheduler</h2>
+        <div>
+          <a href="/admin/dashboard" class="btn btn-outline-light me-2">Back to Dashboard</a>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMeetingModal">
+            <i class="bi bi-plus-circle"></i> Create Meeting
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Success/Error Message Area -->
+  <div id="messageArea" style="display: none; margin-bottom: 20px;">
+    <div id="messageContent" class="alert" role="alert" style="margin-bottom: 0;"></div>
+  </div>
+  
+  <!-- Calendar -->
+  <div class="calendar-container">
+    <div id="calendar"></div>
+  </div>
+</div>
+
+<!-- Create/Edit Meeting Modal -->
+<div class="modal fade" id="createMeetingModal" tabindex="-1" aria-labelledby="createMeetingModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createMeetingModalLabel">Create Meeting Schedule</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="meetingForm">
+          <input type="hidden" id="meetingId" name="meeting_id">
+          
+          <div class="mb-3">
+            <label for="title" class="form-label">Meeting Title *</label>
+            <input type="text" class="form-control" id="title" name="title" required>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="meetingDate" class="form-label">Date *</label>
+              <input type="date" class="form-control" id="meetingDate" name="meeting_date" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="meetingTime" class="form-label">Time (America/New_York) *</label>
+              <input type="time" class="form-control" id="meetingTime" name="meeting_time" required>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="meetingLink" class="form-label">Meeting Link (Zoom, etc.) *</label>
+            <input type="url" class="form-control" id="meetingLink" name="meeting_link" required>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="formType" class="form-label">Form Type *</label>
+              <select class="form-select" id="formType" name="form_type" required>
+                <option value="">Select...</option>
+                <option value="LOI Call">LOI Call</option>
+                <option value="CIM Call">CIM Call</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="host" class="form-label">Host *</label>
+              <input type="text" class="form-control" id="host" name="host" required readonly style="background-color: rgba(255, 255, 255, 0.1);">
+              <select class="form-select" id="hostSelect" name="host_select" style="display: none;" required>
+                <option value="">Select Host...</option>
+                <option value="Ben">Ben</option>
+                <option value="Mitch">Mitch</option>
+              </select>
+              <small class="form-text text-muted" id="hostHelp">Host will be set based on Form Type</small>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="guestCount" class="form-label">Guest Count</label>
+            <input type="number" class="form-control" id="guestCount" name="guest_count" value="0" min="0">
+          </div>
+          
+          <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+          </div>
+          
+          <div class="mb-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="isRecurring" name="is_recurring">
+              <label class="form-check-label" for="isRecurring">
+                Make this meeting recurring (repeat every week on the same day)
+              </label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveMeetingBtn">Save Meeting</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" aria-labelledby="eventDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eventDetailsModalLabel">Meeting Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="eventDetailsContent">
+        <!-- Content will be populated by JavaScript -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-info" id="copyMeetingBtn" onclick="copyMeetingDetails()">
+          📋 Copy Details
+        </button>
+        <button type="button" class="btn btn-warning" id="editMeetingBtn">Edit</button>
+        <button type="button" class="btn btn-danger" id="deleteMeetingBtn">Delete</button>
+        <button type="button" class="btn btn-danger" id="cancelRecurringBtn">Cancel All Recurring</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- FullCalendar CSS -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css" rel="stylesheet">
+<!-- FullCalendar JS -->
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
+<script>
+let calendar;
+let currentEvent = null;
+let editMode = false;
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize calendar
+  const calendarEl = document.getElementById('calendar');
+  calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    timeZone: 'America/New_York',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek,timeGridDay'
+    },
+    events: '/admin/meetings/api/list',
+    eventClick: function(info) {
+      // Format event for our display - FullCalendar already parses the event
+      const event = info.event;
+      showEventDetails({
+        id: event.id,
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        extendedProps: event.extendedProps || {},
+        location: event.extendedProps?.meeting_link || event.url || '',
+        description: event.extendedProps?.description || '',
+        recurring: event.extendedProps?.recurring || false,
+        htmlLink: event.extendedProps?.htmlLink || ''
+      });
+    },
+    dateClick: function(info) {
+      // Set date when clicking on calendar
+      document.getElementById('meetingDate').value = info.dateStr;
+      const modal = new bootstrap.Modal(document.getElementById('createMeetingModal'));
+      modal.show();
+    },
+    eventDisplay: 'block',
+    eventColor: '#0D3872'
+  });
+  calendar.render();
+  
+  // Load events
+  loadEvents();
+  
+  // Form submission
+  document.getElementById('saveMeetingBtn').addEventListener('click', saveMeeting);
+  document.getElementById('editMeetingBtn').addEventListener('click', editMeeting);
+  document.getElementById('deleteMeetingBtn').addEventListener('click', deleteMeeting);
+  document.getElementById('cancelRecurringBtn').addEventListener('click', cancelRecurring);
+  
+  // Handle form type changes to set host
+  document.getElementById('formType').addEventListener('change', function() {
+    const formType = this.value;
+    const hostInput = document.getElementById('host');
+    const hostSelect = document.getElementById('hostSelect');
+    const hostHelp = document.getElementById('hostHelp');
+    
+    if (formType === 'LOI Call') {
+      // LOI Call - set host to Evan (readonly input)
+      hostInput.value = 'Evan';
+      hostInput.style.display = 'block';
+      hostSelect.style.display = 'none';
+      hostSelect.removeAttribute('required');
+      hostInput.setAttribute('required', 'required');
+      hostHelp.textContent = 'Host is automatically set to Evan for LOI Calls';
+    } else if (formType === 'CIM Call') {
+      // CIM Call - show dropdown for Ben or Mitch
+      hostInput.style.display = 'none';
+      hostInput.removeAttribute('required');
+      hostSelect.style.display = 'block';
+      hostSelect.setAttribute('required', 'required');
+      hostSelect.value = ''; // Reset selection
+      hostHelp.textContent = 'Select host for CIM Call (Ben or Mitch)';
+    } else {
+      // No form type selected
+      hostInput.value = '';
+      hostInput.style.display = 'block';
+      hostSelect.style.display = 'none';
+      hostSelect.removeAttribute('required');
+      hostInput.removeAttribute('required');
+      hostHelp.textContent = 'Host will be set based on Form Type';
+    }
+  });
+  
+  // Reset form when modal is closed
+  document.getElementById('createMeetingModal').addEventListener('hidden.bs.modal', function() {
+    resetForm();
+  });
+});
+
+function showMessage(message, type = 'success') {
+  const messageArea = document.getElementById('messageArea');
+  const messageContent = document.getElementById('messageContent');
+  
+  // Set message and styling
+  messageContent.textContent = message;
+  messageContent.className = 'alert';
+  
+  if (type === 'success') {
+    messageContent.classList.add('alert-success');
+    messageContent.style.backgroundColor = 'rgba(25, 135, 84, 0.2)';
+    messageContent.style.borderColor = 'rgba(25, 135, 84, 0.5)';
+    messageContent.style.color = '#75f5a7';
+    messageContent.style.border = '1px solid rgba(25, 135, 84, 0.5)';
+  } else {
+    messageContent.classList.add('alert-danger');
+    messageContent.style.backgroundColor = 'rgba(220, 53, 69, 0.2)';
+    messageContent.style.borderColor = 'rgba(220, 53, 69, 0.5)';
+    messageContent.style.color = '#ff9999';
+    messageContent.style.border = '1px solid rgba(220, 53, 69, 0.5)';
+  }
+  
+  messageArea.style.display = 'block';
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    messageArea.style.display = 'none';
+  }, 5000);
+  
+  // Scroll to top to show message
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function loadEvents() {
+  calendar.refetchEvents();
+}
+
+function resetForm() {
+  document.getElementById('meetingForm').reset();
+  document.getElementById('meetingId').value = '';
+  editMode = false;
+  currentEvent = null;
+  document.getElementById('createMeetingModalLabel').textContent = 'Create Meeting Schedule';
+  
+  // Reset host fields
+  const hostInput = document.getElementById('host');
+  const hostSelect = document.getElementById('hostSelect');
+  hostInput.value = '';
+  hostInput.style.display = 'block';
+  hostSelect.style.display = 'none';
+  hostSelect.removeAttribute('required');
+  hostInput.removeAttribute('required');
+  document.getElementById('hostHelp').textContent = 'Host will be set based on Form Type';
+}
+
+function saveMeeting() {
+  const form = document.getElementById('meetingForm');
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+  
+  const formData = new FormData(form);
+  const meetingId = document.getElementById('meetingId').value;
+  
+  // Create date in America/New_York timezone
+  const dateStr = document.getElementById('meetingDate').value;
+  const timeStr = document.getElementById('meetingTime').value;
+  const localDateTime = new Date(dateStr + 'T' + timeStr);
+  
+  // Get host value - either from input (LOI) or select (CIM)
+  const hostInput = document.getElementById('host');
+  const hostSelect = document.getElementById('hostSelect');
+  const hostValue = hostInput.style.display !== 'none' ? hostInput.value : hostSelect.value;
+  
+  // Convert to ISO string (this will be in local timezone, backend will handle conversion)
+  const data = {
+    title: document.getElementById('title').value,
+    meeting_time: localDateTime.toISOString(),
+    meeting_link: document.getElementById('meetingLink').value,
+    description: document.getElementById('description').value,
+    host: hostValue,
+    guest_count: parseInt(document.getElementById('guestCount').value) || 0,
+    form_type: document.getElementById('formType').value,
+    is_recurring: document.getElementById('isRecurring').checked
+  };
+  
+  const url = meetingId ? `/admin/meetings/api/${meetingId}` : '/admin/meetings/api/create';
+  const method = meetingId ? 'PUT' : 'POST';
+  
+  // Convert data to FormData
+  const formDataToSend = new FormData();
+  Object.keys(data).forEach(key => {
+    if (key === 'is_recurring') {
+      // Send as string 'true' or 'false' for FormField
+      formDataToSend.append(key, data[key] ? 'true' : 'false');
+    } else {
+      formDataToSend.append(key, data[key]);
+    }
+  });
+  
+  fetch(url, {
+    method: method,
+    body: formDataToSend
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success || result.meeting) {
+      bootstrap.Modal.getInstance(document.getElementById('createMeetingModal')).hide();
+      loadEvents();
+      showMessage('Meeting saved successfully!', 'success');
+    } else {
+      showMessage('Error: ' + (result.error || 'Failed to save meeting'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showMessage('Error saving meeting: ' + error.message, 'error');
+  });
+}
+
+function copyMeetingDetails() {
+  if (!currentEvent) return;
+  
+  const extendedProps = currentEvent.extendedProps || {};
+  const dateTime = new Date(currentEvent.start).toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const isRecurring = extendedProps.recurring || currentEvent.recurring || false;
+  
+  const details = `Meeting Details:
+Title: ${currentEvent.title}
+Host: ${extendedProps.host || 'N/A'}
+Form Type: ${extendedProps.form_type || 'N/A'}
+Date & Time: ${dateTime}
+Recurring: ${isRecurring ? 'Yes' : 'No'}
+Meeting Link: ${extendedProps.meeting_link || currentEvent.location || 'N/A'}
+${extendedProps.description || currentEvent.description ? `Description: ${extendedProps.description || currentEvent.description}` : ''}
+${currentEvent.htmlLink ? `Google Calendar: ${currentEvent.htmlLink}` : ''}`;
+  
+  // Copy to clipboard
+  navigator.clipboard.writeText(details).then(() => {
+    showMessage('Meeting details copied to clipboard!', 'success');
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    showMessage('Failed to copy meeting details', 'error');
+  });
+}
+
+function showEventDetails(event) {
+  currentEvent = event;
+  const extendedProps = event.extendedProps || {};
+  const dateTime = new Date(event.start).toLocaleString('en-US', { timeZone: 'America/New_York' });
+  
+  let recurringText = 'No';
+  if (extendedProps.recurring || event.recurring) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const eventDate = new Date(event.start);
+    const dayName = dayNames[eventDate.getDay()];
+    const timeStr = eventDate.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      timeZone: 'America/New_York'
+    });
+    recurringText = `Every ${dayName} at ${timeStr} NY Time`;
+  }
+  
+  const content = `
+    <h6>${event.title}</h6>
+    <p><strong>Date & Time:</strong> ${dateTime}</p>
+    <p><strong>Host:</strong> ${extendedProps.host || 'N/A'}</p>
+    <p><strong>Form Type:</strong> ${extendedProps.form_type || 'N/A'}</p>
+    <p><strong>Meeting Link:</strong> <a href="${extendedProps.meeting_link || event.location || '#'}" target="_blank">${extendedProps.meeting_link || event.location || 'N/A'}</a></p>
+    ${extendedProps.description || event.description ? `<p><strong>Description:</strong> ${extendedProps.description || event.description}</p>` : ''}
+    <p><strong>Recurring:</strong> ${recurringText}</p>
+    ${event.htmlLink ? `<p><a href="${event.htmlLink}" target="_blank">View in Google Calendar</a></p>` : ''}
+  `;
+  
+  document.getElementById('eventDetailsContent').innerHTML = content;
+  
+  // Show/hide buttons based on event type
+  const deleteBtn = document.getElementById('deleteMeetingBtn');
+  const cancelRecurringBtn = document.getElementById('cancelRecurringBtn');
+  
+  if (extendedProps.recurring || event.recurring) {
+    deleteBtn.style.display = 'none';
+    cancelRecurringBtn.style.display = 'inline-block';
+  } else {
+    deleteBtn.style.display = 'inline-block';
+    cancelRecurringBtn.style.display = 'none';
+  }
+  
+  const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+  modal.show();
+}
+
+function editMeeting() {
+  if (!currentEvent) return;
+  
+  const eventId = currentEvent.id;
+  
+  // Fetch the meeting from Google Calendar
+  fetch(`/admin/meetings/api/${eventId}`)
+    .then(response => response.json())
+    .then(meeting => {
+      if (meeting.error) {
+        showMessage('Error loading meeting: ' + meeting.error, 'error');
+        return;
+      }
+      
+      // Populate form - convert to America/New_York timezone for display
+      const meetingTime = new Date(meeting.meeting_time);
+      // Format date and time in local timezone (browser will show in user's timezone)
+      const year = meetingTime.getFullYear();
+      const month = String(meetingTime.getMonth() + 1).padStart(2, '0');
+      const day = String(meetingTime.getDate()).padStart(2, '0');
+      const hours = String(meetingTime.getHours()).padStart(2, '0');
+      const minutes = String(meetingTime.getMinutes()).padStart(2, '0');
+      
+      document.getElementById('meetingId').value = meeting.id;
+      document.getElementById('title').value = meeting.title;
+      document.getElementById('meetingDate').value = `${year}-${month}-${day}`;
+      document.getElementById('meetingTime').value = `${hours}:${minutes}`;
+      document.getElementById('meetingLink').value = meeting.meeting_link;
+      document.getElementById('description').value = meeting.description || '';
+      document.getElementById('guestCount').value = meeting.guest_count || 0;
+      document.getElementById('formType').value = meeting.form_type;
+      document.getElementById('isRecurring').checked = meeting.recurring_day !== null;
+      
+      // Trigger form type change to set host fields properly
+      const formTypeSelect = document.getElementById('formType');
+      formTypeSelect.dispatchEvent(new Event('change'));
+      
+      // Set host value after form type change handler runs
+      setTimeout(() => {
+        const hostInput = document.getElementById('host');
+        const hostSelect = document.getElementById('hostSelect');
+        
+        if (meeting.form_type === 'LOI Call') {
+          hostInput.value = meeting.host;
+        } else if (meeting.form_type === 'CIM Call') {
+          hostSelect.value = meeting.host;
+        }
+      }, 100);
+      
+      document.getElementById('createMeetingModalLabel').textContent = 'Edit Meeting Schedule';
+      editMode = true;
+      
+      bootstrap.Modal.getInstance(document.getElementById('eventDetailsModal')).hide();
+      const createModal = new bootstrap.Modal(document.getElementById('createMeetingModal'));
+      createModal.show();
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      showMessage('Error loading meeting: ' + error.message, 'error');
+    });
+}
+
+function deleteMeeting() {
+  if (!currentEvent) return;
+  
+  const eventId = currentEvent.id;
+  
+  if (!confirm('Are you sure you want to delete this meeting?')) {
+    return;
+  }
+  
+  fetch(`/admin/meetings/api/${eventId}`, {
+    method: 'DELETE'
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      bootstrap.Modal.getInstance(document.getElementById('eventDetailsModal')).hide();
+      loadEvents();
+      showMessage('Meeting deleted successfully!', 'success');
+    } else {
+      showMessage('Error: ' + (result.error || 'Failed to delete meeting'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showMessage('Error deleting meeting: ' + error.message, 'error');
+  });
+}
+
+function cancelRecurring() {
+  if (!currentEvent) return;
+  
+  const eventId = currentEvent.id;
+  
+  if (!confirm('Are you sure you want to cancel ALL future recurring meetings?')) {
+    return;
+  }
+  
+  fetch(`/admin/meetings/api/${eventId}?cancel_all=true`, {
+    method: 'DELETE'
+  })
+  .then(response => response.json())
+  .then(result => {
+    if (result.success) {
+      bootstrap.Modal.getInstance(document.getElementById('eventDetailsModal')).hide();
+      loadEvents();
+      showMessage('All recurring meetings cancelled successfully!', 'success');
+    } else {
+      showMessage('Error: ' + (result.error || 'Failed to cancel recurring meetings'), 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    showMessage('Error cancelling recurring meetings: ' + error.message, 'error');
+  });
+}
+</script>
+{% endblock %}
+

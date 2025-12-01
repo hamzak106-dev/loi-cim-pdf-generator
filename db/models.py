@@ -17,6 +17,12 @@ class FormType(str, PyEnum):
     CIM_TRAINING = "CIM_TRAINING"
 
 
+class MeetingType(str, PyEnum):
+    """Meeting type enumeration"""
+    LOI_CALL = "LOI Call"
+    CIM_CALL = "CIM Call"
+
+
 class Form(Base):
     """
     Unified Form model for both LOI and CIM submissions
@@ -318,3 +324,130 @@ class FormReviewed(Base):
     
     def __repr__(self):
         return f"<FormReviewed(form_id={self.form_id}, reviewed_at={self.reviewed_at})>"
+
+
+class MeetScheduler(Base):
+    """
+    Model for scheduling recurring meetings
+    Stores minimal info - details are fetched from Google Calendar using google_event_id
+    """
+    __tablename__ = 'meet_scheduler'
+    
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Google Calendar Event ID (primary reference)
+    google_event_id = Column(String(200), nullable=False, unique=True, index=True, comment="Google Calendar event ID")
+    
+    # Minimal Meeting Information (for filtering/querying)
+    host = Column(String(100), nullable=False, index=True, comment="Meeting host name")
+    form_type = Column(SQLEnum(MeetingType), nullable=False, index=True, comment="Type of meeting: LOI Call or CIM Call")
+    is_active = Column(Boolean, default=True, nullable=False, index=True, comment="Whether the meeting schedule is active")
+    
+    # Legacy fields (kept for backward compatibility, but not actively used)
+    title = Column(String(200), nullable=True, comment="Meeting title (deprecated - fetch from Google Calendar)")
+    meeting_time = Column(DateTime(timezone=True), nullable=True, index=True, comment="Meeting date and time (deprecated - fetch from Google Calendar)")
+    meeting_link = Column(String(500), nullable=True, comment="Meeting link (deprecated - fetch from Google Calendar)")
+    description = Column(Text, nullable=True, comment="Meeting description (deprecated - fetch from Google Calendar)")
+    guest_count = Column(Integer, default=0, comment="Number of guests/attendees")
+    
+    # Recurring Pattern (stored as day of week: 0=Monday, 6=Sunday)
+    recurring_day = Column(Integer, nullable=True, comment="Day of week for recurring (0=Monday, 6=Sunday)")
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="Record creation timestamp")
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), comment="Last update timestamp")
+    
+    def __repr__(self):
+        return f"<MeetScheduler(id={self.id}, title='{self.title}', form_type={self.form_type.value}, is_active={self.is_active})>"
+    
+    def to_dict(self) -> dict:
+        """Convert model instance to dictionary"""
+        return {
+            'id': self.id,
+            'title': self.title,
+            'meeting_time': self.meeting_time.isoformat() if self.meeting_time else None,
+            'meeting_link': self.meeting_link,
+            'description': self.description,
+            'host': self.host,
+            'guest_count': self.guest_count,
+            'form_type': self.form_type.value if self.form_type else None,
+            'is_active': self.is_active,
+            'recurring_day': self.recurring_day,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class MeetingInstance(Base):
+    """
+    Model for individual meeting instances (for recurring meetings)
+    Each instance represents a specific date/time for a meeting
+    Uses google_event_id to reference Google Calendar events
+    """
+    __tablename__ = 'meeting_instance'
+    
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Google Calendar Event ID (for recurring events, this is the parent event ID)
+    google_event_id = Column(String(200), nullable=False, index=True, comment="Google Calendar event ID")
+    
+    # Foreign Key to MeetScheduler (optional, for backward compatibility)
+    scheduler_id = Column(Integer, ForeignKey('meet_scheduler.id'), nullable=True, index=True, comment="Reference to the meeting schedule (optional)")
+    
+    # Instance Information
+    instance_time = Column(DateTime(timezone=True), nullable=False, index=True, comment="Specific date and time for this instance")
+    guest_count = Column(Integer, default=0, nullable=False, comment="Current number of registered guests (max 10)")
+    max_guests = Column(Integer, default=10, nullable=False, comment="Maximum number of guests allowed")
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="Record creation timestamp")
+    
+    def __repr__(self):
+        return f"<MeetingInstance(id={self.id}, scheduler_id={self.scheduler_id}, instance_time={self.instance_time}, guest_count={self.guest_count})>"
+    
+    def to_dict(self) -> dict:
+        """Convert model instance to dictionary"""
+        return {
+            'id': self.id,
+            'scheduler_id': self.scheduler_id,
+            'instance_time': self.instance_time.isoformat() if self.instance_time else None,
+            'guest_count': self.guest_count,
+            'max_guests': self.max_guests,
+            'is_full': self.guest_count >= self.max_guests,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class MeetingRegistration(Base):
+    """
+    Model for tracking user registrations to meeting instances
+    """
+    __tablename__ = 'meeting_registration'
+    
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Foreign Key to MeetingInstance
+    instance_id = Column(Integer, ForeignKey('meeting_instance.id'), nullable=False, index=True, comment="Reference to the meeting instance")
+    
+    # User Information
+    full_name = Column(String(100), nullable=False, comment="Full name of the registrant")
+    email = Column(String(120), nullable=False, index=True, comment="Email address of the registrant")
+    
+    # Metadata
+    registered_at = Column(DateTime(timezone=True), server_default=func.now(), comment="Registration timestamp")
+    
+    def __repr__(self):
+        return f"<MeetingRegistration(id={self.id}, instance_id={self.instance_id}, email='{self.email}')>"
+    
+    def to_dict(self) -> dict:
+        """Convert model instance to dictionary"""
+        return {
+            'id': self.id,
+            'instance_id': self.instance_id,
+            'full_name': self.full_name,
+            'email': self.email,
+            'registered_at': self.registered_at.isoformat() if self.registered_at else None,
+        }

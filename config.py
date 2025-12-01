@@ -21,6 +21,9 @@ class Settings:
     GOOGLE_DRIVE_FOLDER_ID: Optional[str] = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
     GOOGLE_DRIVE_CREDENTIALS_PATH: str = os.getenv("GOOGLE_DRIVE_CREDENTIALS_PATH", "service_account.json")
     
+    # Google Calendar
+    GOOGLE_CALENDAR_ID: Optional[str] = os.getenv("GOOGLE_CALENDAR_ID", "primary")
+    
     # Google Service Account Credentials (for dynamic generation)
     GOOGLE_SERVICE_ACCOUNT_TYPE: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_TYPE", "service_account")
     GOOGLE_PROJECT_ID: Optional[str] = os.getenv("GOOGLE_PROJECT_ID")
