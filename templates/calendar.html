@@ -778,23 +778,240 @@ function showEventDetails(event) {
   const bodyEl = document.getElementById('modalEventBody');
   const footerEl = document.getElementById('modalEventFooter');
   
-  // Parse event times
-  const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
-  const endTime = typeof event.end === 'string' ? event.end : (event.end?.dateTime || event.end?.date);
+  // Parse event times - handle both string format (legacy) and object format (new)
+  let startTime, endTime;
+  if (typeof event.start === 'string') {
+    // Legacy format: event.start is a string
+    startTime = event.start;
+    endTime = typeof event.end === 'string' ? event.end : (event.end?.dateTime || event.end?.date);
+  } else {
+    // New format: event.start is an object with dateTime/date and timeZone
+    startTime = event.start?.dateTime || event.start?.date;
+    endTime = event.end?.dateTime || event.end?.date;
+  }
+  
   const startDate = startTime ? new Date(startTime) : null;
   const endDate = endTime ? new Date(endTime) : null;
   
-  // Format date and time
+  // Get timezone from the event (from Google Calendar)
+  const eventTimezone = (typeof event.start === 'object' && event.start?.timeZone) || null;
+  
+  // Function to convert GMT offset to timezone abbreviation
+  function getTimezoneAbbreviation(timezoneName, date) {
+    // First, try to map timezone names directly
+    const timezoneMap = {
+      'Asia/Karachi': 'PKT',
+      'Asia/Kolkata': 'IST',
+      'Asia/Dubai': 'GST',
+      'Asia/Singapore': 'SGT',
+      'Asia/Tokyo': 'JST',
+      'Asia/Shanghai': 'CST',
+      'Asia/Hong_Kong': 'HKT',
+      'Asia/Dhaka': 'BST',
+      'America/New_York': 'ET',
+      'America/Chicago': 'CT',
+      'America/Denver': 'MT',
+      'America/Los_Angeles': 'PT',
+      'America/Toronto': 'ET',
+      'Europe/London': 'GMT',
+      'Europe/Paris': 'CET',
+      'Europe/Moscow': 'MSK',
+      'Europe/Berlin': 'CET',
+      'Australia/Sydney': 'AEST',
+      'Australia/Melbourne': 'AEST',
+    };
+    
+    if (timezoneName && timezoneMap[timezoneName]) {
+      return timezoneMap[timezoneName];
+    }
+    
+    // If timezone name not found, try to get abbreviation from Intl API
+    if (timezoneName) {
+      try {
+        const formatter = new Intl.DateTimeFormat('en-US', { 
+          timeZone: timezoneName,
+          timeZoneName: 'short' 
+        });
+        const parts = formatter.formatToParts(date || startDate);
+        const tzPart = parts.find(part => part.type === 'timeZoneName');
+        if (tzPart) {
+          let tzAbbr = tzPart.value;
+          // If it's GMT+5 format, convert to abbreviation
+          if (tzAbbr.startsWith('GMT')) {
+            // Extract offset (e.g., GMT+5, GMT+05, GMT+5:30)
+            const offsetMatch = tzAbbr.match(/GMT([+-])(\d{1,2})(:?(\d{2}))?/);
+            if (offsetMatch) {
+              const sign = offsetMatch[1];
+              const hours = parseInt(offsetMatch[2]);
+              const minutes = offsetMatch[4] ? parseInt(offsetMatch[4]) : 0;
+              const offsetKey = `${sign}${hours}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+              const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+              
+              // Map offsets to timezone abbreviations
+              const offsetToTz = {
+                '+5': 'PKT', '+05': 'PKT', '+5:30': 'IST', '+05:30': 'IST',
+                '+6': 'BST', '+06': 'BST',
+                '+8': 'CST', '+08': 'CST', '+9': 'JST', '+09': 'JST',
+                '+10': 'AEST', '+11': 'AEDT',
+                '-5': 'EST', '-05': 'EST', '-6': 'CST', '-06': 'CST',
+                '-7': 'MST', '-07': 'MST', '-8': 'PST', '-08': 'PST',
+                '-9': 'AKST', '-09': 'AKST', '-10': 'HST',
+                '+0': 'GMT', '+00': 'GMT', '+1': 'CET', '+01': 'CET',
+                '+2': 'EET', '+02': 'EET', '+3': 'MSK', '+03': 'MSK',
+                '+4': 'GST', '+04': 'GST',
+              };
+              
+              return offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || tzAbbr.replace(/^GMT\+?/, '');
+            }
+            // If no match, just remove GMT prefix
+            return tzAbbr.replace(/^GMT\+?/, '');
+          }
+          return tzAbbr;
+        }
+      } catch (e) {
+        console.error('Error getting timezone abbreviation:', e);
+      }
+    }
+    
+    // Fallback: try to extract from date string offset
+    if (startTime && (startTime.includes('+') || startTime.includes('-'))) {
+      const tzMatch = startTime.match(/([+-]\d{2}):?(\d{2})?$/);
+      if (tzMatch) {
+        const sign = tzMatch[1][0];
+        const hours = parseInt(tzMatch[1].substring(1));
+        const minutes = tzMatch[2] ? parseInt(tzMatch[2]) : 0;
+        const offsetKey = `${sign}${hours}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+        const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+        
+        const offsetToTz = {
+          '+5': 'PKT', '+05': 'PKT', '+5:30': 'IST', '+05:30': 'IST',
+          '+6': 'BST', '+06': 'BST',
+          '+8': 'CST', '+08': 'CST', '+9': 'JST', '+09': 'JST',
+          '+10': 'AEST', '+11': 'AEDT',
+          '-5': 'EST', '-05': 'EST', '-6': 'CST', '-06': 'CST',
+          '-7': 'MST', '-07': 'MST', '-8': 'PST', '-08': 'PST',
+          '-9': 'AKST', '-09': 'AKST', '-10': 'HST',
+          '+0': 'GMT', '+00': 'GMT', '+1': 'CET', '+01': 'CET',
+          '+2': 'EET', '+02': 'EET', '+3': 'MSK', '+03': 'MSK',
+          '+4': 'GST', '+04': 'GST',
+        };
+        
+        return offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || `GMT${sign}${hours}`;
+      }
+    }
+    
+    // Final fallback
+    if (timezoneName) {
+      return timezoneName.split('/').pop() || '';
+    }
+    
+    return '';
+  }
+  
+  // Format date and time using the event's actual timezone
   let dateTimeStr = '';
   if (startDate) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const dayName = dayNames[startDate.getDay()];
-    const monthName = monthNames[startDate.getMonth()];
-    const day = startDate.getDate();
-    const startTimeStr = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
-    const endTimeStr = endDate ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : '';
-    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeStr}${endTimeStr ? ' - ' + endTimeStr : ''}`;
+    
+    // Use event's timezone if available
+    let timezoneToUse = eventTimezone;
+    
+    // Format time using the event's timezone
+    const timeOptions = { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true
+    };
+    
+    // Add timezone if available
+    if (timezoneToUse) {
+      timeOptions.timeZone = timezoneToUse;
+    }
+    
+    // Format time without timezone (we'll add it separately)
+    const timeOptionsNoTz = { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true
+    };
+    if (timezoneToUse) {
+      timeOptionsNoTz.timeZone = timezoneToUse;
+    }
+    
+    const startTimeOnly = startDate.toLocaleTimeString('en-US', timeOptionsNoTz);
+    const endTimeOnly = endDate ? endDate.toLocaleTimeString('en-US', timeOptionsNoTz) : '';
+    
+    // Get timezone abbreviation
+    let timezoneAbbr = getTimezoneAbbreviation(timezoneToUse, startDate);
+    
+    // If still no abbreviation, try to get it from the formatted time string
+    if (!timezoneAbbr) {
+      try {
+        const timeWithTz = startDate.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit', 
+          hour12: true,
+          timeZoneName: 'short',
+          timeZone: timezoneToUse || undefined
+        });
+        // Extract timezone from formatted string (e.g., "10:30 PM GMT+5" -> "GMT+5")
+        const parts = timeWithTz.split(' ');
+        const tzFromString = parts[parts.length - 1];
+        if (tzFromString && tzFromString.startsWith('GMT')) {
+          // Convert GMT+5 to PKT, etc.
+          const offsetMatch = tzFromString.match(/GMT([+-])(\d{1,2})(:?(\d{2}))?/);
+          if (offsetMatch) {
+            const sign = offsetMatch[1];
+            const hours = parseInt(offsetMatch[2]);
+            const minutes = offsetMatch[4] ? parseInt(offsetMatch[4]) : 0;
+            const offsetKey = `${sign}${hours}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+            const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+            
+            const offsetToTz = {
+              '+5': 'PKT', '+05': 'PKT', '+5:30': 'IST', '+05:30': 'IST',
+              '+6': 'BST', '+06': 'BST', '+8': 'CST', '+08': 'CST',
+              '+9': 'JST', '+09': 'JST', '+10': 'AEST', '+11': 'AEDT',
+              '-5': 'EST', '-05': 'EST', '-6': 'CST', '-06': 'CST',
+              '-7': 'MST', '-07': 'MST', '-8': 'PST', '-08': 'PST',
+              '-9': 'AKST', '-09': 'AKST', '-10': 'HST',
+              '+0': 'GMT', '+00': 'GMT', '+1': 'CET', '+01': 'CET',
+              '+2': 'EET', '+02': 'EET', '+3': 'MSK', '+03': 'MSK',
+              '+4': 'GST', '+04': 'GST',
+            };
+            timezoneAbbr = offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || '';
+          }
+        } else if (tzFromString && !tzFromString.includes('GMT')) {
+          timezoneAbbr = tzFromString;
+        }
+      } catch (e) {
+        console.error('Error extracting timezone from string:', e);
+      }
+    }
+    
+    // Get date components
+    const dateOptions = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric', 
+      weekday: 'long' 
+    };
+    if (timezoneToUse) {
+      dateOptions.timeZone = timezoneToUse;
+    }
+    
+    const startDateStr = startDate.toLocaleDateString('en-US', dateOptions);
+    
+    // Parse the formatted date string to extract components
+    const dateParts = startDateStr.split(', ');
+    const dayName = dateParts[0];
+    const monthDay = dateParts[1].split(' ');
+    const monthName = monthDay[0];
+    const day = parseInt(monthDay[1]);
+    
+    // Format: "Saturday, December 6th @ 10:30 PM - 11:30 PM PKT" (using event's timezone)
+    // Always show timezone abbreviation
+    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeOnly}${endTimeOnly ? ' - ' + endTimeOnly : ''} ${timezoneAbbr || ''}`.trim();
   }
   
   // Set title and subtitle - format title in uppercase

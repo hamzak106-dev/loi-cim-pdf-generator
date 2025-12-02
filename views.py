@@ -155,16 +155,28 @@ async def get_all_calendar_events(request: Request, calendar_id: Optional[str] =
         formatted_events = []
         for event in events:
             # Extract start and end times as ISO strings (like the example)
-            start_time = event['start'].get('dateTime', event['start'].get('date'))
-            end_time = event['end'].get('dateTime', event['end'].get('date'))
+            start_data = event.get('start', {})
+            end_data = event.get('end', {})
+            start_time = start_data.get('dateTime', start_data.get('date'))
+            end_time = end_data.get('dateTime', end_data.get('date'))
+            start_timezone = start_data.get('timeZone')  # Get timezone from start
+            end_timezone = end_data.get('timeZone')  # Get timezone from end
             
             event_info = {
                 'id': event.get('id'),
                 'summary': event.get('summary'),
                 'description': event.get('description'),
                 'location': event.get('location'),
-                'start': start_time,  # ISO datetime string
-                'end': end_time,  # ISO datetime string
+                'start': {
+                    'dateTime': start_time if start_time else None,
+                    'date': start_data.get('date') if not start_time else None,
+                    'timeZone': start_timezone  # Include timezone information
+                },
+                'end': {
+                    'dateTime': end_time if end_time else None,
+                    'date': end_data.get('date') if not end_time else None,
+                    'timeZone': end_timezone  # Include timezone information
+                },
                 'hangoutLink': event.get('hangoutLink'),
                 'attendees': event.get('attendees', []),  # Full attendee objects with email, organizer, self, responseStatus
                 'reminders': event.get('reminders', {}),
@@ -597,7 +609,8 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
             "total_count": loi_count + cim_count + cim_training_count,
             "reviewed_count": reviewed_count,
             "user_count": user_count,
-            "current_filter": filter_type
+            "current_filter": filter_type,
+            "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
         })
     finally:
         db.close()
