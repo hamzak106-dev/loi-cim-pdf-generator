@@ -3,6 +3,209 @@
 {% block title %}LOI Questions{% endblock %}
 
 {% block scripts %}
+<script>
+// Fetch and display calendar events
+document.addEventListener('DOMContentLoaded', function() {
+  fetchCalendarEvents();
+  
+  // Enable/disable Schedule Call button based on email input
+  const emailInput = document.getElementById('email');
+  const scheduleBtn = document.getElementById('scheduleCallBtn');
+  
+  if (emailInput && scheduleBtn) {
+    function updateScheduleButton() {
+      const email = emailInput.value.trim();
+      const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      
+      if (email && emailPattern.test(email)) {
+        scheduleBtn.style.opacity = '1';
+        scheduleBtn.style.cursor = 'pointer';
+        scheduleBtn.style.pointerEvents = 'auto';
+        scheduleBtn.parentElement.querySelector('small').style.display = 'none';
+      } else {
+        scheduleBtn.style.opacity = '0.6';
+        scheduleBtn.style.cursor = 'not-allowed';
+        scheduleBtn.style.pointerEvents = 'auto'; // Still allow click to show alert
+        scheduleBtn.parentElement.querySelector('small').style.display = 'block';
+      }
+    }
+    
+    // Check on page load
+    updateScheduleButton();
+    
+    // Check on input change
+    emailInput.addEventListener('input', updateScheduleButton);
+    emailInput.addEventListener('blur', updateScheduleButton);
+  }
+});
+
+async function fetchCalendarEvents() {
+  const loadingEl = document.getElementById('eventsLoading');
+  const errorEl = document.getElementById('eventsError');
+  const eventsListEl = document.getElementById('eventsList');
+  
+  try {
+    loadingEl.style.display = 'block';
+    errorEl.style.display = 'none';
+    eventsListEl.innerHTML = '';
+    
+    // Get calendar_id from backend template variable
+    const calendarId = '{{ calendar_id }}' || 'primary';
+    const response = await fetch(`/api/calendar/events?calendar_id=${encodeURIComponent(calendarId)}`);
+    const data = await response.json();
+    
+    loadingEl.style.display = 'none';
+    
+    if (!data.success || !data.events || data.events.length === 0) {
+      eventsListEl.innerHTML = '<div class="text-muted text-center py-3">No upcoming events found.</div>';
+      return;
+    }
+    
+    // Filter future events and sort by start time
+    // API returns start/end as ISO datetime strings (e.g., "2025-12-02T19:00:00+05:00")
+    const now = new Date();
+    const futureEvents = data.events
+      .filter(event => {
+        // Handle both ISO string format and object format for compatibility
+        const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+        return startTime && new Date(startTime) >= now;
+      })
+      .sort((a, b) => {
+        const startA = typeof a.start === 'string' ? a.start : (a.start?.dateTime || a.start?.date || 0);
+        const startB = typeof b.start === 'string' ? b.start : (b.start?.dateTime || b.start?.date || 0);
+        return new Date(startA) - new Date(startB);
+      })
+      .slice(0, 10); // Show top 10 upcoming events
+    
+    if (futureEvents.length === 0) {
+      eventsListEl.innerHTML = '<div class="text-muted text-center py-3">No upcoming events found.</div>';
+      return;
+    }
+    
+    // Display events in detailed list format
+    futureEvents.forEach(event => {
+      const eventCard = document.createElement('div');
+      eventCard.className = 'card mb-3';
+      eventCard.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+      eventCard.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+      
+      // Parse ISO datetime strings from API response (format: "2025-12-02T19:00:00+05:00")
+      const startTimeStr = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date || '');
+      const endTimeStr = typeof event.end === 'string' ? event.end : (event.end?.dateTime || event.end?.date || '');
+      const startDate = startTimeStr ? new Date(startTimeStr) : new Date();
+      const endDate = endTimeStr ? new Date(endTimeStr) : new Date();
+      
+      const formattedDate = startDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const formattedStartTime = startDate.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+      const formattedEndTime = endDate.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+      
+      // Format attendees with full details (email, organizer, self, responseStatus)
+      let attendeesList = '';
+      if (event.attendees && event.attendees.length > 0) {
+        attendeesList = event.attendees.map(att => {
+          const email = att.email || 'Unknown';
+          const isOrganizer = att.organizer ? ' (Organizer)' : '';
+          const isSelf = att.self ? ' (You)' : '';
+          const status = att.responseStatus ? ` [${att.responseStatus}]` : '';
+          return `${email}${isOrganizer}${isSelf}${status}`;
+        }).join(', ');
+      }
+      
+      // Format organizer
+      const organizer = event.organizer ? (event.organizer.email || event.organizer.displayName || '') : '';
+      
+      // Format reminders
+      const remindersInfo = event.reminders ? 
+        (event.reminders.useDefault ? 'Default reminders' : 
+         (event.reminders.overrides ? event.reminders.overrides.map(r => `${r.method} ${r.minutes}min before`).join(', ') : 'No reminders'))
+        : '';
+      
+      // Check if recurring
+      const isRecurring = event.recurrence && event.recurrence.length > 0;
+      
+      eventCard.innerHTML = `
+        <div class="card-body">
+          <h6 class="card-title mb-2">
+            ${escapeHtml(event.summary || 'Untitled Event')}
+            ${isRecurring ? '<span class="badge bg-info ms-2">Recurring</span>' : ''}
+          </h6>
+          <div class="mb-2">
+            <small class="text-muted">
+              <i class="bi bi-calendar-event"></i> ${formattedDate}<br>
+              <i class="bi bi-clock"></i> ${formattedStartTime} - ${formattedEndTime}
+            </small>
+          </div>
+          ${event.description ? `<p class="card-text small mb-2">${escapeHtml(event.description)}</p>` : ''}
+          ${event.location ? `<p class="card-text small mb-2"><i class="bi bi-geo-alt"></i> ${escapeHtml(event.location)}</p>` : ''}
+          ${organizer ? `<p class="card-text small mb-2"><i class="bi bi-person"></i> Organizer: ${escapeHtml(organizer)}</p>` : ''}
+          ${remindersInfo ? `<p class="card-text small mb-2"><i class="bi bi-bell"></i> ${escapeHtml(remindersInfo)}</p>` : ''}
+          ${event.hangoutLink ? `<a href="${event.hangoutLink}" target="_blank" class="btn btn-sm btn-primary mb-2"><i class="bi bi-camera-video"></i> Join Google Meet</a>` : ''}
+          ${attendeesList ? `
+            <div class="mt-2">
+              <small class="text-muted">
+                <i class="bi bi-people"></i> Attendees: ${escapeHtml(attendeesList)}
+              </small>
+            </div>
+          ` : ''}
+          ${event.htmlLink ? `<a href="${event.htmlLink}" target="_blank" class="btn btn-sm btn-outline-secondary mt-2"><i class="bi bi-calendar-check"></i> View in Calendar</a>` : ''}
+        </div>
+      `;
+      
+      eventsListEl.appendChild(eventCard);
+    });
+    
+  } catch (error) {
+    loadingEl.style.display = 'none';
+    errorEl.textContent = 'Failed to load events. Please try again later.';
+    errorEl.style.display = 'block';
+    console.error('Error fetching calendar events:', error);
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Handle Schedule Call button click - check email first
+function handleScheduleCall(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById('email');
+  const email = emailInput ? emailInput.value.trim() : '';
+  
+  if (!email) {
+    alert('Please enter your email address first');
+    emailInput.focus();
+    return false;
+  }
+  
+  // Validate email format
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailPattern.test(email)) {
+    alert('Please enter a valid email address');
+    emailInput.focus();
+    return false;
+  }
+  
+  // Redirect to calendar page with email parameter
+  window.location.href = `/calendar?form_type=LOI Call&host=Evan&email=${encodeURIComponent(email)}`;
+  return false;
+}
+</script>
 {% endblock %}
 
 {% block content %}
@@ -191,10 +394,12 @@
 
               <!-- Schedule Live Call Button -->
               <div class="mb-4">
-                <a href="/calendar?form_type=LOI Call&host=Evan" class="btn btn-primary rounded-pill btn-lg px-5 w-100" id="scheduleCallBtn">
+                <a href="#" class="btn btn-primary rounded-pill btn-lg px-5 w-100" id="scheduleCallBtn" onclick="handleScheduleCall(event)" style="pointer-events: auto; opacity: 0.6; cursor: not-allowed;">
                   📅 Schedule a Live Call
                 </a>
+                <small class="text-muted d-block mt-2">Please enter your email above to schedule a call</small>
               </div>
+
 
               <!-- Action Buttons -->
               <div class="d-flex gap-3 justify-content-between flex-wrap">

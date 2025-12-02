@@ -10,7 +10,7 @@ function showHostSelectionModal() {
     <div class="modal fade" id="hostSelectionModal" tabindex="-1">
       <div class="modal-dialog">
         <div class="modal-content">
-          <div class="modal-header">
+          <div class="modal-header" style="background-color: rgba(0, 0, 0, 0.3);">
             <h5 class="modal-title">Select Host for CIM Call</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
@@ -37,6 +37,31 @@ function showHostSelectionModal() {
   modalElement.show();
 }
 
+// Handle Schedule Call button click - check email first
+function handleScheduleCall(event) {
+  event.preventDefault();
+  const emailInput = document.getElementById('email');
+  const email = emailInput ? emailInput.value.trim() : '';
+  
+  if (!email) {
+    alert('Please enter your email address first');
+    if (emailInput) emailInput.focus();
+    return false;
+  }
+  
+  // Validate email format
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailPattern.test(email)) {
+    alert('Please enter a valid email address');
+    if (emailInput) emailInput.focus();
+    return false;
+  }
+  
+  // For CIM Call, show host selection modal
+  showHostSelectionModalWithEmail(email);
+  return false;
+}
+
 // Function to open schedule modal (for CIM Call - shows host selection)
 function openScheduleModal(formType) {
   if (formType === 'CIM Call') {
@@ -44,6 +69,183 @@ function openScheduleModal(formType) {
   } else {
     window.location.href = '/calendar?form_type=' + encodeURIComponent(formType);
   }
+}
+
+// Show host selection modal with email
+function showHostSelectionModalWithEmail(email) {
+  const modal = `
+    <div class="modal fade" id="hostSelectionModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header" ">
+            <h5 class="modal-title" style="color: black;">Select Host for CIM Call</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-grid gap-2">
+              <a href="/calendar?form_type=CIM Call&host=Ben&email=${encodeURIComponent(email)}" class="btn btn-primary">Ben</a>
+              <a href="/calendar?form_type=CIM Call&host=Mitch&email=${encodeURIComponent(email)}" class="btn btn-primary">Mitch</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Remove existing modal if any
+  const existing = document.getElementById('hostSelectionModal');
+  if (existing) existing.remove();
+  
+  // Add modal to body
+  document.body.insertAdjacentHTML('beforeend', modal);
+  
+  // Show modal
+  const modalElement = new bootstrap.Modal(document.getElementById('hostSelectionModal'));
+  modalElement.show();
+}
+
+// Fetch and display calendar events in calendar view
+document.addEventListener('DOMContentLoaded', function() {
+  fetchCalendarEventsForCIM();
+});
+
+async function fetchCalendarEventsForCIM() {
+  const loadingEl = document.getElementById('calendarLoading');
+  const errorEl = document.getElementById('calendarError');
+  const calendarViewEl = document.getElementById('calendarView');
+  
+  try {
+    loadingEl.style.display = 'block';
+    errorEl.style.display = 'none';
+    calendarViewEl.innerHTML = '';
+    
+    // Get calendar_id from backend template variable
+    const calendarId = '{{ calendar_id }}' || 'primary';
+    const response = await fetch(`/api/calendar/events?calendar_id=${encodeURIComponent(calendarId)}`);
+    const data = await response.json();
+    
+    loadingEl.style.display = 'none';
+    
+    if (!data.success || !data.events || data.events.length === 0) {
+      calendarViewEl.innerHTML = '<div class="col-12"><div class="text-muted text-center py-3">No upcoming events found.</div></div>';
+      return;
+    }
+    
+    // Filter future events and group by date
+    // API returns start/end as ISO datetime strings (e.g., "2025-12-02T19:00:00+05:00")
+    const now = new Date();
+    const futureEvents = data.events
+      .filter(event => {
+        // Handle both ISO string format and object format for compatibility
+        const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+        return startTime && new Date(startTime) >= now;
+      })
+      .sort((a, b) => {
+        const startA = typeof a.start === 'string' ? a.start : (a.start?.dateTime || a.start?.date || 0);
+        const startB = typeof b.start === 'string' ? b.start : (b.start?.dateTime || b.start?.date || 0);
+        return new Date(startA) - new Date(startB);
+      })
+      .slice(0, 30); // Show up to 30 upcoming events
+    
+    if (futureEvents.length === 0) {
+      calendarViewEl.innerHTML = '<div class="col-12"><div class="text-muted text-center py-3">No upcoming events found.</div></div>';
+      return;
+    }
+    
+    // Group events by date
+    const eventsByDate = {};
+    futureEvents.forEach(event => {
+      // Handle both ISO string format and object format
+      const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+      const dateKey = new Date(startTime).toDateString();
+      if (!eventsByDate[dateKey]) {
+        eventsByDate[dateKey] = [];
+      }
+      eventsByDate[dateKey].push(event);
+    });
+    
+    // Display events in calendar-style grid
+    Object.keys(eventsByDate).forEach(dateKey => {
+      const events = eventsByDate[dateKey];
+      const date = new Date(dateKey);
+      const formattedDate = date.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+      });
+      
+      const dateCard = document.createElement('div');
+      dateCard.className = 'col-md-6 col-lg-4';
+      
+      dateCard.innerHTML = `
+        <div class="card h-100" style="background-color: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.1);">
+          <div class="card-header" style="background-color: rgba(0, 0, 0, 0.3);">
+            <h6 class="mb-0"><i class="bi bi-calendar3"></i> ${formattedDate}</h6>
+          </div>
+          <div class="card-body">
+            ${events.map(event => {
+              // Parse ISO datetime strings from API response (format: "2025-12-02T19:00:00+05:00")
+              const startTimeStr = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date || '');
+              const endTimeStr = typeof event.end === 'string' ? event.end : (event.end?.dateTime || event.end?.date || '');
+              const startDate = startTimeStr ? new Date(startTimeStr) : new Date();
+              const endDate = endTimeStr ? new Date(endTimeStr) : new Date();
+              const formattedStartTime = startDate.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              });
+              const formattedEndTime = endDate.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              });
+              
+              // Format attendees
+              const attendeesList = event.attendees && event.attendees.length > 0 
+                ? event.attendees.map(a => a.email || (typeof a === 'string' ? a : a.displayName || 'Unknown')).join(', ')
+                : '';
+              
+              // Format organizer
+              const organizer = event.organizer ? (event.organizer.email || event.organizer.displayName || '') : '';
+              
+              // Check if recurring
+              const isRecurring = event.recurrence && event.recurrence.length > 0;
+              
+              return `
+                <div class="mb-3 pb-3 border-bottom" style="border-color: rgba(255, 255, 255, 0.1) !important;">
+                  <div class="fw-semibold mb-1">
+                    ${escapeHtml(event.summary || 'Untitled Event')}
+                    ${isRecurring ? '<span class="badge bg-info ms-1" style="font-size: 0.7rem;">Recurring</span>' : ''}
+                  </div>
+                  <div class="small text-muted mb-2">
+                    <i class="bi bi-clock"></i> ${formattedStartTime} - ${formattedEndTime}
+                  </div>
+                  ${event.description ? `<div class="small mb-2">${escapeHtml(event.description.substring(0, 100))}${event.description.length > 100 ? '...' : ''}</div>` : ''}
+                  ${event.location ? `<div class="small text-muted mb-1"><i class="bi bi-geo-alt"></i> ${escapeHtml(event.location)}</div>` : ''}
+                  ${organizer ? `<div class="small text-muted mb-1"><i class="bi bi-person"></i> ${escapeHtml(organizer)}</div>` : ''}
+                  ${event.hangoutLink ? `<a href="${event.hangoutLink}" target="_blank" class="btn btn-sm btn-primary mt-1"><i class="bi bi-camera-video"></i> Join</a>` : ''}
+                  ${event.htmlLink ? `<a href="${event.htmlLink}" target="_blank" class="btn btn-sm btn-outline-secondary mt-1 ms-1"><i class="bi bi-calendar-check"></i> View</a>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+      
+      calendarViewEl.appendChild(dateCard);
+    });
+    
+  } catch (error) {
+    loadingEl.style.display = 'none';
+    errorEl.textContent = 'Failed to load events. Please try again later.';
+    errorEl.style.display = 'block';
+    console.error('Error fetching calendar events:', error);
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 </script>
 {% endblock %}
@@ -236,10 +438,13 @@ function openScheduleModal(formType) {
 
               <!-- Schedule Live Call Button -->
               <div class="mb-4">
-                <button type="button" class="btn btn-primary rounded-pill btn-lg px-5 w-100" id="scheduleCallBtn" onclick="openScheduleModal('CIM Call'); return false;">
+                <button type="button" class="btn btn-primary rounded-pill btn-lg px-5 w-100" id="scheduleCallBtn" onclick="handleScheduleCall(event)" style="opacity: 0.6; cursor: not-allowed;">
                   📅 Schedule a Live Call
                 </button>
+                <small class="text-muted d-block mt-2">Please enter your email above to schedule a call</small>
               </div>
+
+            
 
               <!-- Action Buttons -->
               <div class="d-flex gap-3 justify-content-between flex-wrap">
@@ -272,6 +477,34 @@ function toggleSearchNarrative() {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
   toggleSearchNarrative();
+  
+  // Enable/disable Schedule Call button based on email input
+  const emailInput = document.getElementById('email');
+  const scheduleBtn = document.getElementById('scheduleCallBtn');
+  
+  if (emailInput && scheduleBtn) {
+    function updateScheduleButton() {
+      const email = emailInput.value.trim();
+      const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      
+      if (email && emailPattern.test(email)) {
+        scheduleBtn.style.opacity = '1';
+        scheduleBtn.style.cursor = 'pointer';
+        scheduleBtn.parentElement.querySelector('small').style.display = 'none';
+      } else {
+        scheduleBtn.style.opacity = '0.6';
+        scheduleBtn.style.cursor = 'not-allowed';
+        scheduleBtn.parentElement.querySelector('small').style.display = 'block';
+      }
+    }
+    
+    // Check on page load
+    updateScheduleButton();
+    
+    // Check on input change
+    emailInput.addEventListener('input', updateScheduleButton);
+    emailInput.addEventListener('blur', updateScheduleButton);
+  }
   
   // Scroll to top if success message is present
   const successAlert = document.querySelector('.alert-success');

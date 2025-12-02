@@ -72,10 +72,11 @@
 }
 
 .calendar-day {
-  aspect-ratio: 1;
+  min-height: 80px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 5px;
   cursor: pointer;
@@ -83,6 +84,8 @@
   background-color: rgba(255, 255, 255, 0.05);
   color: #fff;
   font-size: 0.9rem;
+  padding: 5px;
+  position: relative;
 }
 
 .calendar-day:hover {
@@ -104,21 +107,8 @@
 }
 
 .calendar-day.has-event {
-  background-color: rgba(255, 193, 7, 0.2);
+  background-color: rgba(255, 193, 7, 0.15);
   border-color: rgba(255, 193, 7, 0.5);
-  position: relative;
-}
-
-.calendar-day.has-event::after {
-  content: '';
-  position: absolute;
-  bottom: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 5px;
-  height: 5px;
-  background-color: #ffc107;
-  border-radius: 50%;
 }
 
 .calendar-day.selected {
@@ -128,9 +118,38 @@
   font-weight: 600;
 }
 
+.day-number {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.day-events {
+  width: 100%;
+  margin-top: 2px;
+  font-size: 0.7rem;
+}
+
+.day-event-item {
+  background-color: rgba(13, 56, 114, 0.6);
+  color: #fff;
+  padding: 2px 4px;
+  margin: 2px 0;
+  border-radius: 3px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.day-event-item:hover {
+  background-color: rgba(13, 56, 114, 0.9);
+  transform: scale(1.02);
+}
+
 .calendar-events {
   padding: 15px;
-  max-height: 300px;
+  max-height: 400px;
   overflow-y: auto;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: 20px;
@@ -144,6 +163,13 @@
   background-color: rgba(255, 255, 255, 0.05);
   border-left: 3px solid rgba(13, 56, 114, 0.9);
   border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.event-item:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
 }
 
 .event-time {
@@ -163,6 +189,385 @@
   padding: 20px;
   color: rgba(255, 255, 255, 0.6);
 }
+
+/* Event Detail Modal Styles */
+.event-modal {
+  display: none;
+  position: fixed;
+  z-index: 1050;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.event-modal.show {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.event-modal-content {
+  background-color: #fff;
+  margin: auto;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: modalSlideIn 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.event-modal-header {
+  background: linear-gradient(135deg, #0d3872 0%, #1a5a9e 100%);
+  
+  color: #fff;
+  padding: 30px 35px 25px;
+  position: relative;
+  border-radius: 16px 16px 0 0;
+}
+
+.event-modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #fff;
+}
+
+.event-modal-subtitle {
+  font-size: 0.95rem;
+  opacity: 0.95;
+  margin: 0;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-modal-subtitle::before {
+  content: 'A';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.event-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.8rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  line-height: 1;
+  padding: 0;
+}
+
+.event-modal-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.event-modal-body {
+  padding: 30px 35px;
+  color: #333;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.event-detail-item {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.event-detail-icon {
+  font-size: 1.4rem;
+  margin-top: 2px;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.event-detail-content {
+  flex: 1;
+}
+
+.event-detail-label {
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 6px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.event-detail-value {
+  font-size: 0.95rem;
+  color: #333;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.event-detail-value a {
+  color: rgba(13, 56, 114, 0.9);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.event-detail-value a:hover {
+  text-decoration: underline;
+}
+
+.event-description {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.event-attendees-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.event-attendee-badge {
+  background-color: #f5f5f5;
+  color: #333;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #e0e0e0;
+  font-weight: 400;
+}
+
+.event-attendee-badge.organizer {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border-color: #90caf9;
+  font-weight: 500;
+}
+
+.event-modal-footer {
+  padding: 25px 35px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  background-color: #fafafa;
+}
+
+.btn-add-calendar {
+  background: linear-gradient(135deg, #0d3872 0%, #1a5a9e 100%);
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(13, 56, 114, 0.2);
+}
+
+.btn-add-calendar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(13, 56, 114, 0.3);
+}
+
+.btn-add-calendar:active {
+  transform: translateY(0);
+}
+
+.btn-join-meeting {
+  background-color: #0d3872;
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(13, 56, 114, 0.2);
+}
+
+.btn-join-meeting:hover {
+  background-color: #0a2d5a;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(13, 56, 114, 0.3);
+  color: #fff;
+  text-decoration: none;
+}
+
+.btn-join-meeting:active {
+  transform: translateY(0);
+}
+
+/* Email Input Modal Styles */
+#emailInputModal {
+  z-index: 1055 !important;
+}
+
+#emailInputModal .modal-dialog {
+  z-index: 1056 !important;
+}
+
+#emailInputModal .modal-content {
+  background-color: rgba(5, 13, 30, 0.98) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+#emailInputModal .modal-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+#emailInputModal .modal-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+#emailInputModal .form-control {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #fff !important;
+}
+
+#emailInputModal .form-control:focus {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(13, 56, 114, 0.8) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 0.25rem rgba(13, 56, 114, 0.25) !important;
+}
+
+#emailInputModal .form-control::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+#emailInputModal .btn-secondary {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+
+#emailInputModal .btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.email-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 1050;
+  backdrop-filter: blur(5px);
+}
+
+/* Full Screen Loader Styles */
+.calendar-loader {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: opacity 0.3s ease;
+}
+
+.calendar-loader.show {
+  display: flex;
+}
+
+.calendar-loader .spinner-border {
+  width: 4rem;
+  height: 4rem;
+  border-width: 0.4rem;
+  margin-bottom: 20px;
+  border-color: rgba(255, 255, 255, 0.2);
+  border-right-color: #fff;
+  animation: spinner-border 0.75s linear infinite;
+}
+
+.calendar-loader-text {
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin-top: 15px;
+  color: #fff;
+}
+
+@keyframes spinner-border {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.calendar-content {
+  opacity: 0;
+  transition: opacity 0.4s ease-in;
+}
+
+.calendar-content.loaded {
+  opacity: 1;
+}
 </style>
 <script>
 // Custom Calendar Component
@@ -173,6 +578,7 @@ class CustomCalendar {
     this.selectedDate = null;
     this.events = options.events || [];
     this.onDateSelect = options.onDateSelect || null;
+    this.onEventClick = options.onEventClick || null;
     this.formType = options.formType || 'LOI Call';
     this.host = options.host || 'Evan';
     
@@ -221,9 +627,11 @@ class CustomCalendar {
              date.getFullYear() === today.getFullYear();
     };
     
-    const hasEvent = (date) => {
-      return this.events.some(event => {
-        const eventDate = new Date(event.date);
+    const getEventsForDate = (date) => {
+      return this.events.filter(event => {
+        const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+        if (!startTime) return false;
+        const eventDate = new Date(startTime);
         return eventDate.getDate() === date.getDate() &&
                eventDate.getMonth() === date.getMonth() &&
                eventDate.getFullYear() === date.getFullYear();
@@ -237,7 +645,9 @@ class CustomCalendar {
     const prevMonthDays = prevMonth.getDate();
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       const date = new Date(year, month - 1, prevMonthDays - i);
-      days.push(`<div class="calendar-day other-month" data-date="${date.toISOString()}">${prevMonthDays - i}</div>`);
+      days.push(`<div class="calendar-day other-month" data-date="${date.toISOString()}">
+        <div class="day-number">${prevMonthDays - i}</div>
+      </div>`);
     }
     
     // Current month's days
@@ -245,7 +655,10 @@ class CustomCalendar {
       const date = new Date(year, month, day);
       const classes = ['calendar-day'];
       if (isToday(date)) classes.push('today');
-      if (hasEvent(date)) classes.push('has-event');
+      
+      const dayEvents = getEventsForDate(date);
+      if (dayEvents.length > 0) classes.push('has-event');
+      
       if (this.selectedDate && 
           this.selectedDate.getDate() === date.getDate() &&
           this.selectedDate.getMonth() === date.getMonth() &&
@@ -253,14 +666,31 @@ class CustomCalendar {
         classes.push('selected');
       }
       
-      days.push(`<div class="${classes.join(' ')}" data-date="${date.toISOString()}">${day}</div>`);
+      const eventsHtml = dayEvents.length > 0 ? `
+        <div class="day-events">
+          ${dayEvents.slice(0, 3).map((event, idx) => {
+            const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+            const eventTime = startTime ? new Date(startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
+            const title = event.summary || 'Untitled Event';
+            return `<div class="day-event-item" data-event-id="${event.id}" data-event-index="${year}-${month}-${day}-${idx}" onclick="event.stopPropagation(); const eventData = window.calendarInstance.events.find(e => e.id === '${event.id}'); if(eventData) window.showEventDetails(eventData);">${eventTime} - ${escapeHtml(title.substring(0, 20))}${title.length > 20 ? '...' : ''}</div>`;
+          }).join('')}
+          ${dayEvents.length > 3 ? `<div class="day-event-item" style="opacity: 0.7;">+${dayEvents.length - 3} more</div>` : ''}
+        </div>
+      ` : '';
+      
+      days.push(`<div class="${classes.join(' ')}" data-date="${date.toISOString()}">
+        <div class="day-number">${day}</div>
+        ${eventsHtml}
+      </div>`);
     }
     
     // Next month's days
-    const remainingCells = 42 - days.length; // 6 rows * 7 days
+    const remainingCells = 42 - days.length;
     for (let day = 1; day <= remainingCells; day++) {
       const date = new Date(year, month + 1, day);
-      days.push(`<div class="calendar-day other-month" data-date="${date.toISOString()}">${day}</div>`);
+      days.push(`<div class="calendar-day other-month" data-date="${date.toISOString()}">
+        <div class="day-number">${day}</div>
+      </div>`);
     }
     
     return days.join('');
@@ -269,7 +699,8 @@ class CustomCalendar {
   attachDayClickListeners() {
     const dayElements = this.container.querySelectorAll('.calendar-day:not(.other-month)');
     dayElements.forEach(dayEl => {
-      dayEl.addEventListener('click', () => {
+      dayEl.addEventListener('click', (e) => {
+        if (e.target.closest('.day-event-item')) return; // Don't trigger if clicking on event
         const dateStr = dayEl.getAttribute('data-date');
         const date = new Date(dateStr);
         this.selectDate(date);
@@ -282,13 +713,16 @@ class CustomCalendar {
     this.render();
     
     if (this.onDateSelect) {
-      this.onDateSelect(date, this.getEventsForDate(date));
+      const dayEvents = this.getEventsForDate(date);
+      this.onDateSelect(date, dayEvents);
     }
   }
   
   getEventsForDate(date) {
     return this.events.filter(event => {
-      const eventDate = new Date(event.date);
+      const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+      if (!startTime) return false;
+      const eventDate = new Date(startTime);
       return eventDate.getDate() === date.getDate() &&
              eventDate.getMonth() === date.getMonth() &&
              eventDate.getFullYear() === date.getFullYear();
@@ -311,6 +745,346 @@ class CustomCalendar {
   }
 }
 
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Show event details in modal
+function showEventDetails(event) {
+  const modal = document.getElementById('eventDetailModal');
+  if (!modal) {
+    // Create modal if it doesn't exist
+    const modalHtml = `
+      <div id="eventDetailModal" class="event-modal bg-dark">
+        <div class="event-modal-content">
+          <div class="event-modal-header">
+            <button class="event-modal-close" onclick="closeEventModal()">&times;</button>
+            <h2 class="event-modal-title" id="modalEventTitle"></h2>
+            <p class="event-modal-subtitle" id="modalEventSubtitle"></p>
+          </div>
+          <div class="event-modal-body" id="modalEventBody"></div>
+          <div class="event-modal-footer" id="modalEventFooter"></div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  }
+  
+  const modalEl = document.getElementById('eventDetailModal');
+  const titleEl = document.getElementById('modalEventTitle');
+  const subtitleEl = document.getElementById('modalEventSubtitle');
+  const bodyEl = document.getElementById('modalEventBody');
+  const footerEl = document.getElementById('modalEventFooter');
+  
+  // Parse event times
+  const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+  const endTime = typeof event.end === 'string' ? event.end : (event.end?.dateTime || event.end?.date);
+  const startDate = startTime ? new Date(startTime) : null;
+  const endDate = endTime ? new Date(endTime) : null;
+  
+  // Format date and time
+  let dateTimeStr = '';
+  if (startDate) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dayName = dayNames[startDate.getDay()];
+    const monthName = monthNames[startDate.getMonth()];
+    const day = startDate.getDate();
+    const startTimeStr = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+    const endTimeStr = endDate ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : '';
+    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeStr}${endTimeStr ? ' - ' + endTimeStr : ''}`;
+  }
+  
+  // Set title and subtitle - format title in uppercase
+  const eventTitle = (event.summary || 'Untitled Event').toUpperCase();
+  titleEl.textContent = eventTitle;
+  subtitleEl.innerHTML = '<span>ACQUISITION ACE ACADEMY</span>';
+  
+  // Add "WITH [HOST]" if host is available
+  const host = '{{ host }}' || '';
+  if (host) {
+    subtitleEl.innerHTML += ` <span style="opacity: 0.9;">WITH ${host.toUpperCase()}</span>`;
+  }
+  
+  // Build body content
+  let bodyHtml = '';
+  
+  // Date and Time
+  if (dateTimeStr) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📅</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Date & Time</div>
+          <div class="event-detail-value">${escapeHtml(dateTimeStr)}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Meeting Link (Google Meet or Location)
+  if (event.hangoutLink) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📹</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Meeting Link</div>
+          <div class="event-detail-value">
+            <a href="${escapeHtml(event.hangoutLink)}" target="_blank">${escapeHtml(event.hangoutLink)}</a>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (event.location) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📍</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Location</div>
+          <div class="event-detail-value">${escapeHtml(event.location)}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Description
+  if (event.description) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📝</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Description</div>
+          <div class="event-detail-value event-description">${escapeHtml(event.description)}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Organizer
+  if (event.organizer && event.organizer.email) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">👤</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Organizer</div>
+          <div class="event-detail-value">${escapeHtml(event.organizer.displayName || event.organizer.email)}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Attendees
+  if (event.attendees && event.attendees.length > 0) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">👥</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Attendees</div>
+          <div class="event-attendees-list">
+            ${event.attendees.map(att => {
+              const email = att.email || 'Unknown';
+              const isOrganizer = att.organizer ? 'organizer' : '';
+              return `<span class="event-attendee-badge ${isOrganizer}">${escapeHtml(email)}${att.organizer ? ' (Organizer)' : ''}</span>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  bodyEl.innerHTML = bodyHtml;
+  
+  // Build footer with buttons
+  const calendarId = '{{ calendar_id }}' || 'primary';
+  let footerHtml = '';
+  if (event.hangoutLink) {
+    footerHtml += `<a href="${escapeHtml(event.hangoutLink)}" target="_blank" class="btn-join-meeting">📹 Join Meeting</a>`;
+  }
+  // Add to Calendar button - store event data and calendar_id, use onclick to pass button element
+  const eventJson = JSON.stringify(event).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  footerHtml += `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleAddToCalendar(this)">📅 Add to Calendar <span style="font-size: 0.8em;">↓</span></button>`;
+  footerEl.innerHTML = footerHtml;
+  
+  // Show modal
+  modalEl.classList.add('show');
+  
+  // Close on background click
+  modalEl.addEventListener('click', function(e) {
+    if (e.target === modalEl) {
+      closeEventModal();
+    }
+  });
+}
+
+function closeEventModal() {
+  const modal = document.getElementById('eventDetailModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+}
+
+// Handler function for Add to Calendar button - uses email from URL parameter
+function handleAddToCalendar(button) {
+  const eventJson = button.getAttribute('data-event-data');
+  const calendarId = button.getAttribute('data-calendar-id');
+  
+  if (!eventJson) {
+    alert('Event data not found');
+    return;
+  }
+  
+  // Get email from URL parameter or template variable
+  const urlParams = new URLSearchParams(window.location.search);
+  const userEmail = urlParams.get('email') || '{{ user_email }}' || '';
+  
+  if (!userEmail) {
+    alert('Email address is required. Please go back to the form and enter your email first.');
+    return;
+  }
+  
+  // Validate email format
+  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailPattern.test(userEmail)) {
+    alert('Invalid email address. Please go back to the form and enter a valid email.');
+    return;
+  }
+  
+  try {
+    const eventData = JSON.parse(eventJson.replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
+    addToCalendar(eventData, calendarId, button, userEmail);
+  } catch (error) {
+    console.error('Error parsing event data:', error);
+    alert('Error loading event data');
+  }
+}
+
+async function addToCalendar(eventData, calendarId, button, userEmail) {
+  if (!button) {
+    console.error('Button element not provided');
+    return;
+  }
+  
+  const originalText = button.innerHTML;
+  
+  try {
+    // Disable button and show loading state
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" style="width: 1rem; height: 1rem; border-width: 0.15rem;"></span>Adding...';
+    
+    // Prepare request payload to add user as attendee
+    const eventPayload = {
+      event_id: eventData.id,
+      user_email: userEmail,
+      calendar_id: calendarId || '{{ calendar_id }}' || 'primary'
+    };
+    
+    // Call API to add user as attendee to existing event
+    const response = await fetch('/api/calendar/events/add-attendee', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(eventPayload)
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Show success message
+      button.innerHTML = '✓ Added!';
+      button.style.background = 'linear-gradient(135deg, rgba(25, 135, 84, 0.9) 0%, rgba(40, 167, 69, 0.9) 100%)';
+      
+      // Optionally open the event in Google Calendar
+      if (data.event && data.event.htmlLink) {
+        setTimeout(() => {
+          window.open(data.event.htmlLink, '_blank');
+        }, 500);
+      }
+      
+      // Reset button after 3 seconds
+      setTimeout(() => {
+        button.disabled = false;
+        button.innerHTML = originalText;
+        button.style.background = '';
+      }, 3000);
+    } else {
+      // If there's an alternative (like event_html_link), offer it
+      if (data.event_html_link) {
+        const useLink = confirm(data.error + '\n\nWould you like to open the event in Google Calendar to add yourself manually?');
+        if (useLink) {
+          window.open(data.event_html_link, '_blank');
+        }
+      }
+      throw new Error(data.error || 'Failed to add as attendee');
+    }
+  } catch (error) {
+    console.error('Error adding attendee to event:', error);
+    button.disabled = false;
+    button.innerHTML = originalText;
+    alert('Failed to add as attendee: ' + error.message);
+  }
+}
+
+function getOrdinalSuffix(day) {
+  if (day > 3 && day < 21) return 'th';
+  switch (day % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
+
+// Fetch and load calendar events
+async function loadCalendarEvents() {
+  const loaderEl = document.getElementById('calendarLoader');
+  const calendarContentEl = document.getElementById('calendarContent');
+  
+  try {
+    // Show loader (full screen with fade)
+    if (loaderEl) loaderEl.classList.add('show');
+    if (calendarContentEl) calendarContentEl.classList.remove('loaded');
+    
+    const calendarId = '{{ calendar_id }}' || 'primary';
+    const response = await fetch(`/api/calendar/events?calendar_id=${encodeURIComponent(calendarId)}`);
+    const data = await response.json();
+    
+    if (data.success && data.events && data.events.length > 0) {
+      // Filter future events
+      const now = new Date();
+      const futureEvents = data.events.filter(event => {
+        const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+        return startTime && new Date(startTime) >= now;
+      });
+      
+      // Update calendar with events
+      if (window.calendarInstance) {
+        window.calendarInstance.setEvents(futureEvents);
+      }
+    }
+    
+    // Hide loader and show content with fade
+    setTimeout(() => {
+      if (loaderEl) loaderEl.classList.remove('show');
+      if (calendarContentEl) calendarContentEl.classList.add('loaded');
+    }, 300); // Small delay for smooth transition
+  } catch (error) {
+    console.error('Error loading calendar events:', error);
+    // Hide loader even on error
+    if (loaderEl) loaderEl.classList.remove('show');
+    if (calendarContentEl) {
+      calendarContentEl.classList.add('loaded');
+      calendarContentEl.innerHTML = `
+        <div class="alert alert-danger m-3">
+          <strong>Error loading events:</strong> ${error.message || 'Failed to load calendar events. Please try again later.'}
+        </div>
+      `;
+    }
+  }
+}
+
 // Initialize calendar when page loads
 document.addEventListener('DOMContentLoaded', function() {
   const formType = '{{ form_type }}';
@@ -319,27 +1093,32 @@ document.addEventListener('DOMContentLoaded', function() {
   window.calendarInstance = new CustomCalendar('customCalendarContainer', {
     formType: formType,
     host: host,
-    events: [], // Will be populated later with event data
+    events: [],
     onDateSelect: (date, events) => {
       const eventsContainer = document.getElementById('calendarEvents');
       const eventsList = document.getElementById('eventsList');
       
       if (events.length > 0) {
-        eventsList.innerHTML = events.map(event => `
-          <div class="event-item">
-            <div class="event-time">${event.time || 'All day'}</div>
-            <div class="event-title">${event.title}</div>
-          </div>
-        `).join('');
+        eventsList.innerHTML = events.map(event => {
+          const startTime = typeof event.start === 'string' ? event.start : (event.start?.dateTime || event.start?.date);
+          const eventTime = startTime ? new Date(startTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'All day';
+          return `
+            <div class="event-item" onclick="const eventData = window.calendarInstance.events.find(e => e.id === '${event.id}'); if(eventData) showEventDetails(eventData);">
+              <div class="event-time">${escapeHtml(eventTime)}</div>
+              <div class="event-title">${escapeHtml(event.summary || 'Untitled Event')}</div>
+            </div>
+          `;
+        }).join('');
         eventsContainer.style.display = 'block';
       } else {
-        eventsList.innerHTML = '<div class="no-events">No events scheduled for this date. You can add events here later.</div>';
+        eventsList.innerHTML = '<div class="no-events">No events scheduled for this date.</div>';
         eventsContainer.style.display = 'block';
-        // You can add functionality here to create a new event for the selected date
-        console.log('Selected date:', date, 'No events. Can create new event here.');
       }
     }
   });
+  
+  // Load events from Google Calendar
+  loadCalendarEvents();
 });
 </script>
 {% endblock %}
@@ -359,10 +1138,22 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="mb-3">
               <a href="javascript:history.back()" class="btn btn-outline-secondary rounded-pill">← Back</a>
             </div>
-            <div id="customCalendarContainer" class="custom-calendar"></div>
-            <div id="calendarEvents" class="calendar-events" style="display: none;">
-              <h6 class="mb-3">Events for selected date:</h6>
-              <div id="eventsList"></div>
+            
+            <!-- Full Screen Loader -->
+            <div id="calendarLoader" class="calendar-loader show">
+              <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading events...</span>
+              </div>
+              <div class="calendar-loader-text">Loading calendar events...</div>
+            </div>
+            
+            <!-- Calendar Content -->
+            <div id="calendarContent" class="calendar-content">
+              <div id="customCalendarContainer" class="custom-calendar"></div>
+              <div id="calendarEvents" class="calendar-events" style="display: none;">
+                <h6 class="mb-3">Events for selected date:</h6>
+                <div id="eventsList"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -371,4 +1162,3 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 
 {% endblock %}
-

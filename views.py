@@ -16,6 +16,7 @@ import os
 import tempfile
 import pytz
 from config import settings
+from googleapiclient.errors import HttpError
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter()
@@ -54,7 +55,8 @@ async def business_form_page(request: Request):
     """LOI Questions form page"""
     return templates.TemplateResponse("business_form.html", {
         "request": request,
-        "page_title": "LOI Questions"
+        "page_title": "LOI Questions",
+        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
     })
 
 
@@ -63,7 +65,8 @@ async def cim_form_page(request: Request):
     """CIM Questions form page"""
     return templates.TemplateResponse("cim_questions.html", {
         "request": request,
-        "page_title": "CIM Questions"
+        "page_title": "CIM Questions",
+        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
     })
 
 
@@ -77,14 +80,250 @@ async def cim_training_form_page(request: Request):
 
 
 @router.get("/calendar", response_class=HTMLResponse)
-async def calendar_page(request: Request, form_type: Optional[str] = None, host: Optional[str] = None):
+async def calendar_page(request: Request, form_type: Optional[str] = None, host: Optional[str] = None, email: Optional[str] = None):
     """Calendar page for scheduling calls"""
     return templates.TemplateResponse("calendar.html", {
         "request": request,
         "page_title": "Schedule a Live Call",
         "form_type": form_type or "LOI Call",
-        "host": host or "Evan"
+        "host": host or "Evan",
+        "user_email": email or "",
+        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
     })
+
+
+@router.get("/api/calendar/events")
+async def get_all_calendar_events(request: Request, calendar_id: Optional[str] = None):
+    """
+    API endpoint to fetch events from Google Calendar API in real-time
+    Directly calls: GET https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
+    
+    Fetches events from now to 180 days ahead, matching the example format.
+    Uses credentials from .env file (GOOGLE_* environment variables).
+    
+    Args:
+        calendar_id: Calendar ID (uses CALENDAR_ID from .env or GOOGLE_CALENDAR_ID if not provided)
+    
+    Returns:
+        JSON response with event details formatted like the example:
+        - id (event ID)
+        - summary (title)
+        - description
+        - location
+        - start (ISO datetime string)
+        - end (ISO datetime string)
+        - hangoutLink (Google Meet link)
+        - attendees (list of attendee objects with email, organizer, self, responseStatus)
+    """
+    try:
+        # Use provided calendar_id or default from settings (from .env CALENDAR_ID or GOOGLE_CALENDAR_ID)
+        cal_id = calendar_id or settings.GOOGLE_CALENDAR_ID or 'primary'
+        
+        if not cal_id:
+            return JSONResponse({
+                "success": False,
+                "error": "calendar_id is required",
+                "events": []
+            }, status_code=400)
+        
+        # Create calendar service with specified calendar ID
+        # This uses credentials from .env file (GOOGLE_* environment variables)
+        calendar_service = create_calendar_service(calendar_id=cal_id)
+        
+        # Get events directly from Google Calendar API
+        # Use UTC datetime like the example: from now to 180 days ahead
+        now = datetime.utcnow()
+        time_min = now.isoformat() + 'Z'  # Current time in UTC
+        time_max = (now + timedelta(days=180)).isoformat() + 'Z'  # 180 days ahead
+        
+        # Call Google Calendar API directly using the service
+        # This calls: GET https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
+        # Access the Google Calendar API service directly
+        google_service = calendar_service.service
+        events_result = google_service.events().list(
+            calendarId=cal_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            maxResults=2500,  # Maximum allowed by Google Calendar API
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        # Format events exactly like the example
+        formatted_events = []
+        for event in events:
+            # Extract start and end times as ISO strings (like the example)
+            start_time = event['start'].get('dateTime', event['start'].get('date'))
+            end_time = event['end'].get('dateTime', event['end'].get('date'))
+            
+            event_info = {
+                'id': event.get('id'),
+                'summary': event.get('summary'),
+                'description': event.get('description'),
+                'location': event.get('location'),
+                'start': start_time,  # ISO datetime string
+                'end': end_time,  # ISO datetime string
+                'hangoutLink': event.get('hangoutLink'),
+                'attendees': event.get('attendees', []),  # Full attendee objects with email, organizer, self, responseStatus
+                'reminders': event.get('reminders', {}),
+                'organizer': event.get('organizer', {}),
+                'recurrence': event.get('recurrence', []),
+                'htmlLink': event.get('htmlLink', ''),
+                'status': event.get('status', ''),
+                'created': event.get('created', ''),
+                'updated': event.get('updated', ''),
+                'iCalUID': event.get('iCalUID', '')
+            }
+            formatted_events.append(event_info)
+        
+        return JSONResponse({
+            "success": True,
+            "events": formatted_events,
+            "count": len(formatted_events),
+            "calendar_id": cal_id,
+            "time_range": {
+                "from": time_min,
+                "to": time_max
+            },
+            "api_endpoint": f"GET https://www.googleapis.com/calendar/v3/calendars/{cal_id}/events"
+        })
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Error fetching calendar events from Google Calendar API: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": error_msg,
+            "events": [],
+            "calendar_id": calendar_id or settings.GOOGLE_CALENDAR_ID or 'primary'
+        }, status_code=400)
+
+
+@router.post("/api/calendar/events/add-attendee")
+async def add_attendee_to_event(request: Request):
+    """
+    API endpoint to add a user as an attendee to an existing Google Calendar event
+    Updates the existing event by adding the user's email to the attendees list
+    Uses sendUpdates='none' to avoid requiring domain-wide delegation
+    
+    Request body should contain:
+    - event_id: Google Calendar event ID (required)
+    - user_email: Email address of the user to add as attendee (required)
+    - calendar_id: Calendar ID where the event exists (optional, uses default from settings)
+    """
+    try:
+        body = await request.json()
+        
+        event_id = body.get('event_id')
+        user_email = body.get('user_email')
+        calendar_id = body.get('calendar_id') or settings.GOOGLE_CALENDAR_ID or 'primary'
+        
+        if not event_id or not user_email:
+            return JSONResponse({
+                "success": False,
+                "error": "event_id and user_email are required fields"
+            }, status_code=400)
+        
+        # Validate email format
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, user_email):
+            return JSONResponse({
+                "success": False,
+                "error": "Invalid email format"
+            }, status_code=400)
+        
+        # Create calendar service
+        calendar_service = create_calendar_service(calendar_id=calendar_id)
+        
+        # Get existing event to preserve all details
+        existing_event = calendar_service.get_event(event_id)
+        if not existing_event:
+            return JSONResponse({
+                "success": False,
+                "error": "Event not found"
+            }, status_code=404)
+        
+        # Get existing attendees from raw event data
+        raw_event = existing_event.get('_raw', {})
+        existing_attendees = raw_event.get('attendees', [])
+        existing_attendee_emails = []
+        for att in existing_attendees:
+            if isinstance(att, dict):
+                existing_attendee_emails.append(att.get('email', '').lower())
+            elif isinstance(att, str):
+                existing_attendee_emails.append(att.lower())
+        
+        # Check if user is already an attendee
+        if user_email.lower() in existing_attendee_emails:
+            return JSONResponse({
+                "success": False,
+                "error": "User is already an attendee of this event"
+            }, status_code=400)
+        
+        # Add new attendee to the list (preserve existing attendee objects)
+        updated_attendees = list(existing_attendees)  # Keep existing attendee objects
+        updated_attendees.append({'email': user_email})  # Add new attendee
+        
+        # Update the event with the new attendee list using sendUpdates='none'
+        # This should work without domain-wide delegation since we're not sending invitations
+        try:
+            # Get the raw event object
+            event = calendar_service.service.events().get(
+                calendarId=calendar_id,
+                eventId=event_id
+            ).execute()
+            
+            # Update attendees
+            event['attendees'] = updated_attendees
+            
+            # Update the event with sendUpdates='none' to avoid sending email invitations
+            updated_event = calendar_service.service.events().update(
+                calendarId=calendar_id,
+                eventId=event_id,
+                body=event,
+                sendUpdates='none'  # Don't send email notifications - this should bypass domain-wide delegation requirement
+            ).execute()
+            
+            return JSONResponse({
+                "success": True,
+                "message": "Successfully added as attendee",
+                "event": {
+                    "id": updated_event.get('id'),
+                    "htmlLink": updated_event.get('htmlLink'),
+                    "attendees": updated_event.get('attendees', [])
+                }
+            })
+        except HttpError as http_error:
+            error_msg = str(http_error)
+            # If it's still the domain-wide delegation error, provide helpful message
+            if 'forbiddenForServiceAccounts' in error_msg or 'Domain-Wide Delegation' in error_msg:
+                return JSONResponse({
+                    "success": False,
+                    "error": "Unable to add attendee: Service account requires Domain-Wide Delegation to add attendees. Please contact your administrator to set this up, or use the event link to add yourself manually.",
+                    "event_html_link": raw_event.get('htmlLink', ''),
+                    "alternative": "You can open the event in Google Calendar and add yourself manually"
+                }, status_code=403)
+            raise
+        
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Error adding attendee to event: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": error_msg
+        }, status_code=400)
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Error generating calendar link: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": error_msg
+        }, status_code=400)
 
 
 # ==================== UNIFIED SUBMISSION HANDLER ====================

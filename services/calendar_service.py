@@ -25,7 +25,7 @@ class GoogleCalendarService:
         self.calendar_id = calendar_id or settings.GOOGLE_CALENDAR_ID
         self.service = None
         self._authenticate()
-    
+        print("this API is called at 28", self.calendar_id)
     def _authenticate(self):
         """Authenticate using credentials from dictionary (env vars)"""
         try:
@@ -372,7 +372,20 @@ class GoogleCalendarService:
                 event['location'] = location
             
             if attendees is not None:
-                event['attendees'] = [{'email': email} for email in attendees]
+                # Merge with existing attendees if they exist
+                existing_attendees = event.get('attendees', [])
+                existing_emails = {att.get('email', '').lower() for att in existing_attendees if isinstance(att, dict) and att.get('email')}
+                
+                # Create new attendees list, preserving existing attendee objects and adding new ones
+                new_attendees_list = list(existing_attendees)  # Keep existing attendee objects
+                
+                # Add new attendees that don't already exist
+                for email in attendees:
+                    if email and email.lower() not in existing_emails:
+                        new_attendees_list.append({'email': email})
+                        existing_emails.add(email.lower())
+                
+                event['attendees'] = new_attendees_list
             
             if recurrence is not None:
                 event['recurrence'] = recurrence
@@ -383,10 +396,13 @@ class GoogleCalendarService:
                 event['extendedProperties']['private'] = extended_properties
             
             # Update the event
+            # Use sendUpdates='none' to avoid sending email invitations (which requires domain-wide delegation)
+            # This allows adding attendees without sending notifications
             updated_event = self.service.events().update(
                 calendarId=self.calendar_id,
                 eventId=event_id,
-                body=event
+                body=event,
+                sendUpdates='none'  # Don't send email notifications
             ).execute()
             
             print(f"✅ Event updated: {event_id}")
@@ -596,7 +612,7 @@ class GoogleCalendarService:
                 time_min = datetime.now(tz)
             elif time_min.tzinfo is None:
                 time_min = tz.localize(time_min)
-            
+            print("this API is called at 599")
             if time_max and time_max.tzinfo is None:
                 time_max = tz.localize(time_max)
             
