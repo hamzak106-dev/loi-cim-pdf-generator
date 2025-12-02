@@ -438,7 +438,7 @@ function escapeHtml(text) {
 
               <!-- Schedule Live Call Button -->
               <div class="mb-4">
-                <button type="button" class="btn btn-primary rounded-pill btn-lg px-5 w-100" id="scheduleCallBtn" onclick="handleScheduleCall(event)" style="opacity: 0.6; cursor: not-allowed;">
+                <button type="button" class="btn btn-primary rounded-pill btn-lg px-5 w-100" id="scheduleCallBtn" onclick="handleScheduleCall(event)";">
                   📅 Schedule a Live Call
                 </button>
                 <small class="text-muted d-block mt-2">Please enter your email above to schedule a call</small>
@@ -491,6 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
         scheduleBtn.style.opacity = '1';
         scheduleBtn.style.cursor = 'pointer';
         scheduleBtn.parentElement.querySelector('small').style.display = 'none';
+        
       } else {
         scheduleBtn.style.opacity = '0.6';
         scheduleBtn.style.cursor = 'not-allowed';

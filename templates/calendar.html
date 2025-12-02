@@ -896,15 +896,15 @@ function showEventDetails(event) {
   
   bodyEl.innerHTML = bodyHtml;
   
-  // Build footer with buttons
+  // Build footer with buttons (disabled for now)
   const calendarId = '{{ calendar_id }}' || 'primary';
   let footerHtml = '';
   if (event.hangoutLink) {
-    footerHtml += `<a href="${escapeHtml(event.hangoutLink)}" target="_blank" class="btn-join-meeting">📹 Join Meeting</a>`;
+    footerHtml += `<a href="${escapeHtml(event.hangoutLink)}" target="_blank" class="btn-join-meeting" style="opacity: 0.5; pointer-events: none; cursor: not-allowed;">📹 Join Meeting</a>`;
   }
-  // Add to Calendar button - store event data and calendar_id, use onclick to pass button element
+  // Add to Calendar button - store event data and calendar_id, use onclick to pass button element (disabled for now)
   const eventJson = JSON.stringify(event).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  footerHtml += `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleAddToCalendar(this)">📅 Add to Calendar <span style="font-size: 0.8em;">↓</span></button>`;
+  footerHtml += `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" disabled style="opacity: 0.5; cursor: not-allowed;" onclick="return false;">📅 Add to Calendar <span style="font-size: 0.8em;">↓</span></button>`;
   footerEl.innerHTML = footerHtml;
   
   // Show modal
