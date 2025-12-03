@@ -1293,31 +1293,49 @@ async function handleUnifiedCalendarButton(button) {
         }, 2000);
         
       } else if (data.already_registered) {
-        // User already registered - DO NOT redirect, just show error message
+        // User already registered - disable button and show message, DO NOT redirect
         if (errorEl) {
           errorEl.style.display = 'block';
           errorEl.innerHTML = '<span style="color: #1976d2; font-weight: 500;">ℹ️ ' + escapeHtml(data.error || 'You are already registered for this event') + '</span>';
         }
         
-        button.innerHTML = '✓ Already Registered';
+        // Disable button and show "Already Added" state
+        button.innerHTML = '✓ Already Added';
         button.style.background = 'linear-gradient(135deg, rgba(25, 135, 84, 0.9) 0%, rgba(40, 167, 69, 0.9) 100%)';
+        button.disabled = true;
+        button.style.opacity = '0.7';
+        button.style.cursor = 'not-allowed';
+        button.style.pointerEvents = 'none';
         
-        // Reset button after 2 seconds
-        setTimeout(() => {
-          button.disabled = false;
-          button.innerHTML = originalText;
-          button.style.background = '';
-        }, 2000);
-        
-      } else {
-        // Registration failed - DO NOT redirect, just show error message
-        if (errorEl) {
-          errorEl.style.display = 'block';
-          errorEl.innerHTML = '<span style="color: #d32f2f; font-weight: 600;">⚠️ ' + escapeHtml(data.error || 'Registration failed') + '</span>';
+        // Hide button container and show message instead
+        const buttonContainer = document.getElementById('calendarButtonContainer');
+        if (buttonContainer) {
+          buttonContainer.style.display = 'none';
         }
         
-        button.disabled = false;
-        button.innerHTML = originalText;
+      } else {
+        // Registration failed - check if event is full
+        if (data.full) {
+          // Event is full - hide button and show message
+          const buttonContainer = document.getElementById('calendarButtonContainer');
+          const fullMessageEl = document.getElementById('registrationFullMessage');
+          
+          if (buttonContainer) {
+            buttonContainer.style.display = 'none';
+          }
+          if (fullMessageEl) {
+            fullMessageEl.style.display = 'block';
+          }
+        } else {
+          // Other error - show error message but keep button enabled
+          if (errorEl) {
+            errorEl.style.display = 'block';
+            errorEl.innerHTML = '<span style="color: #d32f2f; font-weight: 600;">⚠️ ' + escapeHtml(data.error || 'Registration failed') + '</span>';
+          }
+          
+          button.disabled = false;
+          button.innerHTML = originalText;
+        }
       }
     } else {
       // Status check failed - DO NOT redirect, just show error
@@ -1345,6 +1363,10 @@ async function handleUnifiedCalendarButton(button) {
 // Check registration status for an event and show appropriate button
 async function checkRegistrationStatus(eventId, eventJson, calendarId) {
   try {
+    // Get email to check if user is already registered
+    const urlParams = new URLSearchParams(window.location.search);
+    const userEmail = urlParams.get('email') || '{{ user_email }}' || '';
+    
     const response = await fetch(`/api/calendar/events/${encodeURIComponent(eventId)}/registration-count`);
     const data = await response.json();
     
@@ -1353,17 +1375,40 @@ async function checkRegistrationStatus(eventId, eventJson, calendarId) {
     
     if (data.success) {
       if (data.is_full) {
-        // Event is full - show "Add to Google Calendar" button only (no registration)
+        // Event is full - hide button and show message
         if (buttonContainer) {
-          buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Google Calendar</button>`;
+          buttonContainer.style.display = 'none';
         }
         if (fullMessageEl) {
           fullMessageEl.style.display = 'block';
         }
       } else {
-        // Event has slots - show button that does both registration AND opens Google Calendar
-        if (buttonContainer) {
-          buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
+        // Event has slots - check if user is already registered
+        if (userEmail) {
+          try {
+            // Check if user is already registered by trying to get registration status
+            const checkRegResponse = await fetch(`/api/calendar/events/${encodeURIComponent(eventId)}/registration-count`);
+            const checkRegData = await checkRegResponse.json();
+            
+            // If user is already registered, disable button
+            // We'll check this when button is clicked, but for now show the button
+            if (buttonContainer) {
+              buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
+              buttonContainer.style.display = 'block';
+            }
+          } catch (e) {
+            // On error, show button anyway
+            if (buttonContainer) {
+              buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
+              buttonContainer.style.display = 'block';
+            }
+          }
+        } else {
+          // No email - show button anyway
+          if (buttonContainer) {
+            buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
+            buttonContainer.style.display = 'block';
+          }
         }
         if (fullMessageEl) {
           fullMessageEl.style.display = 'none';
@@ -1372,7 +1417,8 @@ async function checkRegistrationStatus(eventId, eventJson, calendarId) {
     } else {
       // On error, show button that opens Google Calendar
       if (buttonContainer && eventJson && calendarId) {
-        buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Google Calendar</button>`;
+        buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
+        buttonContainer.style.display = 'block';
       }
     }
   } catch (error) {
@@ -1380,7 +1426,8 @@ async function checkRegistrationStatus(eventId, eventJson, calendarId) {
     // On error, show button that opens Google Calendar
     const buttonContainer = document.getElementById('calendarButtonContainer');
     if (buttonContainer && eventJson && calendarId) {
-      buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Google Calendar</button>`;
+      buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
+      buttonContainer.style.display = 'block';
     }
   }
 }
@@ -1398,13 +1445,15 @@ function addToGoogleCalendar(eventData, button) {
     const title = eventData.summary || 'Untitled Event';
     
     // Parse start and end times
-    let startTime, endTime;
+    let startTime, endTime, eventTimezone;
     if (typeof eventData.start === 'string') {
       startTime = eventData.start;
       endTime = typeof eventData.end === 'string' ? eventData.end : (eventData.end?.dateTime || eventData.end?.date);
     } else {
       startTime = eventData.start?.dateTime || eventData.start?.date;
       endTime = eventData.end?.dateTime || eventData.end?.date;
+      // Get timezone from event data
+      eventTimezone = eventData.start?.timeZone || eventData.end?.timeZone;
     }
     
     if (!startTime) {
@@ -1412,30 +1461,56 @@ function addToGoogleCalendar(eventData, button) {
       return;
     }
     
+    // Ensure date strings have timezone info if eventTimezone is available
+    // If date string doesn't have timezone but we have eventTimezone, we need to handle it
+    // Google Calendar API returns dates with timezone, but we'll ensure proper parsing
+    
     // Convert dates to Google Calendar format
-    // For timed events: YYYYMMDDTHHMMSS (UTC)
-    // For all-day events: YYYYMMDD
+    // Google Calendar URL template expects UTC time in format: YYYYMMDDTHHMMSSZ
+    // The key is to properly parse the ISO date string and convert to UTC
     const formatDateForGoogleCalendar = (dateString, isAllDay = false) => {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        throw new Error('Invalid date format');
-      }
-      
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(date.getUTCDate()).padStart(2, '0');
-      
-      // Check if this is an all-day event (no time component in date string)
+      // Check if this is an all-day event (date-only format)
       if (isAllDay || (!dateString.includes('T') && !dateString.includes(' '))) {
+        // Extract date components directly from string (YYYY-MM-DD format)
+        const dateMatch = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dateMatch) {
+          return `${dateMatch[1]}${dateMatch[2]}${dateMatch[3]}`;
+        }
+        // Fallback to parsing
+        const date = new Date(dateString + 'T00:00:00Z'); // Treat as UTC midnight
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
         return `${year}${month}${day}`;
       }
       
-      // Timed event: include time
+      // Parse the ISO date string - JavaScript Date automatically handles timezone conversion
+      // Example: "2024-12-07T19:00:00+05:00" (7pm PKT) becomes a Date object
+      // When we call getUTCHours(), we get the UTC equivalent (2pm UTC = 14:00 UTC)
+      // If date string doesn't have timezone info, JavaScript treats it as local time
+      // So we need to ensure the date string has timezone info
+      let dateToParse = dateString;
+      
+      // If date string doesn't have timezone offset and we have eventTimezone, 
+      // we can't easily convert without a timezone library, so we'll parse as-is
+      // Google Calendar API should always return dates with timezone info
+      const date = new Date(dateToParse);
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid date format: ' + dateString);
+      }
+      
+      // Extract UTC components - this correctly converts from event timezone to UTC
+      // The Date object handles the timezone conversion automatically
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
       const hours = String(date.getUTCHours()).padStart(2, '0');
       const minutes = String(date.getUTCMinutes()).padStart(2, '0');
       const seconds = String(date.getUTCSeconds()).padStart(2, '0');
       
-      return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+      // Format: YYYYMMDDTHHMMSSZ (Z suffix indicates UTC)
+      // Google Calendar will then convert this UTC time to the user's local timezone when displaying
+      return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
     };
     
     // Check if event is all-day (date-only format)
