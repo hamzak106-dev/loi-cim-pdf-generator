@@ -796,80 +796,88 @@ function showEventDetails(event) {
   // Get timezone from the event (from Google Calendar)
   const eventTimezone = (typeof event.start === 'object' && event.start?.timeZone) || null;
   
-  // Function to convert GMT offset to timezone abbreviation
-  function getTimezoneAbbreviation(timezoneName, date) {
-    // First, try to map timezone names directly
+  // Function to convert timezone to full name (e.g., "Eastern Time" instead of "ET")
+  function getTimezoneFullName(timezoneName, date) {
+    // First, try to map timezone names directly to full names
     const timezoneMap = {
-      'Asia/Karachi': 'PKT',
-      'Asia/Kolkata': 'IST',
-      'Asia/Dubai': 'GST',
-      'Asia/Singapore': 'SGT',
-      'Asia/Tokyo': 'JST',
-      'Asia/Shanghai': 'CST',
-      'Asia/Hong_Kong': 'HKT',
-      'Asia/Dhaka': 'BST',
-      'America/New_York': 'ET',
-      'America/Chicago': 'CT',
-      'America/Denver': 'MT',
-      'America/Los_Angeles': 'PT',
-      'America/Toronto': 'ET',
-      'Europe/London': 'GMT',
-      'Europe/Paris': 'CET',
-      'Europe/Moscow': 'MSK',
-      'Europe/Berlin': 'CET',
-      'Australia/Sydney': 'AEST',
-      'Australia/Melbourne': 'AEST',
+      'Asia/Karachi': 'Pakistan Standard Time',
+      'Asia/Kolkata': 'India Standard Time',
+      'Asia/Dubai': 'Gulf Standard Time',
+      'Asia/Singapore': 'Singapore Standard Time',
+      'Asia/Tokyo': 'Japan Standard Time',
+      'Asia/Shanghai': 'China Standard Time',
+      'Asia/Hong_Kong': 'Hong Kong Time',
+      'Asia/Dhaka': 'Bangladesh Standard Time',
+      'America/New_York': 'Eastern Time',
+      'America/Chicago': 'Central Time',
+      'America/Denver': 'Mountain Time',
+      'America/Los_Angeles': 'Pacific Time',
+      'America/Toronto': 'Eastern Time',
+      'Europe/London': 'Greenwich Mean Time',
+      'Europe/Paris': 'Central European Time',
+      'Europe/Moscow': 'Moscow Standard Time',
+      'Europe/Berlin': 'Central European Time',
+      'Australia/Sydney': 'Australian Eastern Standard Time',
+      'Australia/Melbourne': 'Australian Eastern Standard Time',
     };
     
     if (timezoneName && timezoneMap[timezoneName]) {
       return timezoneMap[timezoneName];
     }
     
-    // If timezone name not found, try to get abbreviation from Intl API
+    // If timezone name not found, try to get full name from Intl API
     if (timezoneName) {
       try {
+        // Try to get long timezone name
         const formatter = new Intl.DateTimeFormat('en-US', { 
           timeZone: timezoneName,
-          timeZoneName: 'short' 
+          timeZoneName: 'long' 
         });
         const parts = formatter.formatToParts(date || startDate);
         const tzPart = parts.find(part => part.type === 'timeZoneName');
         if (tzPart) {
-          let tzAbbr = tzPart.value;
-          // If it's GMT+5 format, convert to abbreviation
-          if (tzAbbr.startsWith('GMT')) {
+          let tzName = tzPart.value;
+          // If it's GMT+5 format, convert to full name
+          if (tzName.startsWith('GMT')) {
             // Extract offset (e.g., GMT+5, GMT+05, GMT+5:30)
-            const offsetMatch = tzAbbr.match(/GMT([+-])(\d{1,2})(:?(\d{2}))?/);
+            const offsetMatch = tzName.match(/GMT([+-])(\d{1,2})(:?(\d{2}))?/);
             if (offsetMatch) {
               const sign = offsetMatch[1];
               const hours = parseInt(offsetMatch[2]);
-              const minutes = offsetMatch[4] ? parseInt(offsetMatch[4]) : 0;
               const offsetKey = `${sign}${hours}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
               const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
               
-              // Map offsets to timezone abbreviations
+              // Map offsets to full timezone names
               const offsetToTz = {
-                '+5': 'PKT', '+05': 'PKT', '+5:30': 'IST', '+05:30': 'IST',
-                '+6': 'BST', '+06': 'BST',
-                '+8': 'CST', '+08': 'CST', '+9': 'JST', '+09': 'JST',
-                '+10': 'AEST', '+11': 'AEDT',
-                '-5': 'EST', '-05': 'EST', '-6': 'CST', '-06': 'CST',
-                '-7': 'MST', '-07': 'MST', '-8': 'PST', '-08': 'PST',
-                '-9': 'AKST', '-09': 'AKST', '-10': 'HST',
-                '+0': 'GMT', '+00': 'GMT', '+1': 'CET', '+01': 'CET',
-                '+2': 'EET', '+02': 'EET', '+3': 'MSK', '+03': 'MSK',
-                '+4': 'GST', '+04': 'GST',
+                '+5': 'Pakistan Standard Time', '+05': 'Pakistan Standard Time',
+                '+5:30': 'India Standard Time', '+05:30': 'India Standard Time',
+                '+6': 'Bangladesh Standard Time', '+06': 'Bangladesh Standard Time',
+                '+8': 'China Standard Time', '+08': 'China Standard Time',
+                '+9': 'Japan Standard Time', '+09': 'Japan Standard Time',
+                '+10': 'Australian Eastern Standard Time', '+11': 'Australian Eastern Daylight Time',
+                '-5': 'Eastern Time', '-05': 'Eastern Time',
+                '-6': 'Central Time', '-06': 'Central Time',
+                '-7': 'Mountain Time', '-07': 'Mountain Time',
+                '-8': 'Pacific Time', '-08': 'Pacific Time',
+                '-9': 'Alaska Standard Time', '-09': 'Alaska Standard Time',
+                '-10': 'Hawaii Standard Time',
+                '+0': 'Greenwich Mean Time', '+00': 'Greenwich Mean Time',
+                '+1': 'Central European Time', '+01': 'Central European Time',
+                '+2': 'Eastern European Time', '+02': 'Eastern European Time',
+                '+3': 'Moscow Standard Time', '+03': 'Moscow Standard Time',
+                '+4': 'Gulf Standard Time', '+04': 'Gulf Standard Time',
               };
               
-              return offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || tzAbbr.replace(/^GMT\+?/, '');
+              return offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || tzName;
             }
-            // If no match, just remove GMT prefix
-            return tzAbbr.replace(/^GMT\+?/, '');
+            // If no match, return as is
+            return tzName;
           }
-          return tzAbbr;
+          // If it's already a full name, return it
+          return tzName;
         }
       } catch (e) {
-        console.error('Error getting timezone abbreviation:', e);
+        console.error('Error getting timezone full name:', e);
       }
     }
     
@@ -884,25 +892,48 @@ function showEventDetails(event) {
         const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
         
         const offsetToTz = {
-          '+5': 'PKT', '+05': 'PKT', '+5:30': 'IST', '+05:30': 'IST',
-          '+6': 'BST', '+06': 'BST',
-          '+8': 'CST', '+08': 'CST', '+9': 'JST', '+09': 'JST',
-          '+10': 'AEST', '+11': 'AEDT',
-          '-5': 'EST', '-05': 'EST', '-6': 'CST', '-06': 'CST',
-          '-7': 'MST', '-07': 'MST', '-8': 'PST', '-08': 'PST',
-          '-9': 'AKST', '-09': 'AKST', '-10': 'HST',
-          '+0': 'GMT', '+00': 'GMT', '+1': 'CET', '+01': 'CET',
-          '+2': 'EET', '+02': 'EET', '+3': 'MSK', '+03': 'MSK',
-          '+4': 'GST', '+04': 'GST',
+          '+5': 'Pakistan Standard Time', '+05': 'Pakistan Standard Time',
+          '+5:30': 'India Standard Time', '+05:30': 'India Standard Time',
+          '+6': 'Bangladesh Standard Time', '+06': 'Bangladesh Standard Time',
+          '+8': 'China Standard Time', '+08': 'China Standard Time',
+          '+9': 'Japan Standard Time', '+09': 'Japan Standard Time',
+          '+10': 'Australian Eastern Standard Time', '+11': 'Australian Eastern Daylight Time',
+          '-5': 'Eastern Time', '-05': 'Eastern Time',
+          '-6': 'Central Time', '-06': 'Central Time',
+          '-7': 'Mountain Time', '-07': 'Mountain Time',
+          '-8': 'Pacific Time', '-08': 'Pacific Time',
+          '-9': 'Alaska Standard Time', '-09': 'Alaska Standard Time',
+          '-10': 'Hawaii Standard Time',
+          '+0': 'Greenwich Mean Time', '+00': 'Greenwich Mean Time',
+          '+1': 'Central European Time', '+01': 'Central European Time',
+          '+2': 'Eastern European Time', '+02': 'Eastern European Time',
+          '+3': 'Moscow Standard Time', '+03': 'Moscow Standard Time',
+          '+4': 'Gulf Standard Time', '+04': 'Gulf Standard Time',
         };
         
         return offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || `GMT${sign}${hours}`;
       }
     }
     
-    // Final fallback
+    // Final fallback: format timezone name nicely
     if (timezoneName) {
-      return timezoneName.split('/').pop() || '';
+      const parts = timezoneName.split('/');
+      if (parts.length > 1) {
+        // Convert "America/New_York" to "New York Time" or similar
+        const region = parts[0];
+        const city = parts[1].replace(/_/g, ' ');
+        
+        // Special cases
+        if (region === 'America') {
+          if (city.includes('New York') || city.includes('Toronto')) return 'Eastern Time';
+          if (city.includes('Chicago')) return 'Central Time';
+          if (city.includes('Denver')) return 'Mountain Time';
+          if (city.includes('Los Angeles')) return 'Pacific Time';
+        }
+        
+        return city + ' Time';
+      }
+      return timezoneName;
     }
     
     return '';
@@ -942,47 +973,33 @@ function showEventDetails(event) {
     const startTimeOnly = startDate.toLocaleTimeString('en-US', timeOptionsNoTz);
     const endTimeOnly = endDate ? endDate.toLocaleTimeString('en-US', timeOptionsNoTz) : '';
     
-    // Get timezone abbreviation
-    let timezoneAbbr = getTimezoneAbbreviation(timezoneToUse, startDate);
+    // Get timezone full name (e.g., "Eastern Time" instead of "ET")
+    let timezoneName = getTimezoneFullName(timezoneToUse, startDate);
     
-    // If still no abbreviation, try to get it from the formatted time string
-    if (!timezoneAbbr) {
+    // If still no name, try to get it from the formatted time string
+    if (!timezoneName) {
       try {
         const timeWithTz = startDate.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
           minute: '2-digit', 
           hour12: true,
-          timeZoneName: 'short',
+          timeZoneName: 'long',
           timeZone: timezoneToUse || undefined
         });
-        // Extract timezone from formatted string (e.g., "10:30 PM GMT+5" -> "GMT+5")
+        // Extract timezone from formatted string (e.g., "10:30 PM Eastern Time" -> "Eastern Time")
         const parts = timeWithTz.split(' ');
-        const tzFromString = parts[parts.length - 1];
-        if (tzFromString && tzFromString.startsWith('GMT')) {
-          // Convert GMT+5 to PKT, etc.
-          const offsetMatch = tzFromString.match(/GMT([+-])(\d{1,2})(:?(\d{2}))?/);
-          if (offsetMatch) {
-            const sign = offsetMatch[1];
-            const hours = parseInt(offsetMatch[2]);
-            const minutes = offsetMatch[4] ? parseInt(offsetMatch[4]) : 0;
-            const offsetKey = `${sign}${hours}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
-            const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
-            
-            const offsetToTz = {
-              '+5': 'PKT', '+05': 'PKT', '+5:30': 'IST', '+05:30': 'IST',
-              '+6': 'BST', '+06': 'BST', '+8': 'CST', '+08': 'CST',
-              '+9': 'JST', '+09': 'JST', '+10': 'AEST', '+11': 'AEDT',
-              '-5': 'EST', '-05': 'EST', '-6': 'CST', '-06': 'CST',
-              '-7': 'MST', '-07': 'MST', '-8': 'PST', '-08': 'PST',
-              '-9': 'AKST', '-09': 'AKST', '-10': 'HST',
-              '+0': 'GMT', '+00': 'GMT', '+1': 'CET', '+01': 'CET',
-              '+2': 'EET', '+02': 'EET', '+3': 'MSK', '+03': 'MSK',
-              '+4': 'GST', '+04': 'GST',
-            };
-            timezoneAbbr = offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || '';
+        // Find timezone name (usually last 2-3 words)
+        if (parts.length >= 3) {
+          // Try to extract timezone name (last 2-3 words)
+          const possibleTz = parts.slice(-2).join(' '); // Last 2 words
+          if (possibleTz.includes('Time') || possibleTz.includes('GMT')) {
+            timezoneName = possibleTz;
+          } else if (parts.length >= 3) {
+            const possibleTz3 = parts.slice(-3).join(' '); // Last 3 words
+            if (possibleTz3.includes('Time')) {
+              timezoneName = possibleTz3;
+            }
           }
-        } else if (tzFromString && !tzFromString.includes('GMT')) {
-          timezoneAbbr = tzFromString;
         }
       } catch (e) {
         console.error('Error extracting timezone from string:', e);
@@ -1009,9 +1026,9 @@ function showEventDetails(event) {
     const monthName = monthDay[0];
     const day = parseInt(monthDay[1]);
     
-    // Format: "Saturday, December 6th @ 10:30 PM - 11:30 PM PKT" (using event's timezone)
-    // Always show timezone abbreviation
-    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeOnly}${endTimeOnly ? ' - ' + endTimeOnly : ''} ${timezoneAbbr || ''}`.trim();
+    // Format: "Saturday, December 6th @ 10:30 PM - 11:30 PM Eastern Time" (using event's timezone)
+    // Always show full timezone name
+    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeOnly}${endTimeOnly ? ' - ' + endTimeOnly : ''} ${timezoneName || ''}`.trim();
   }
   
   // Set title and subtitle - format title in uppercase
@@ -1113,16 +1130,28 @@ function showEventDetails(event) {
   
   bodyEl.innerHTML = bodyHtml;
   
-  // Build footer with buttons (disabled for now)
+  // Build footer with buttons
   const calendarId = '{{ calendar_id }}' || 'primary';
   let footerHtml = '';
   if (event.hangoutLink) {
     footerHtml += `<a href="${escapeHtml(event.hangoutLink)}" target="_blank" class="btn-join-meeting" style="opacity: 0.5; pointer-events: none; cursor: not-allowed;">📹 Join Meeting</a>`;
   }
-  // Add to Calendar button - store event data and calendar_id, use onclick to pass button element (disabled for now)
+  // Add to Calendar button - store event data and calendar_id, use onclick to pass button element
   const eventJson = JSON.stringify(event).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  footerHtml += `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" disabled style="opacity: 0.5; cursor: not-allowed;" onclick="return false;">📅 Add to Calendar <span style="font-size: 0.8em;">↓</span></button>`;
+  footerHtml += `<div id="registrationButtonContainer"></div>`;
+  footerHtml += `<div id="registrationError" class="mt-2" style="font-size: 0.9rem; color: #d32f2f; display: none; min-height: 20px;"></div>`;
+  footerHtml += `<div id="registrationFullMessage" class="mt-2" style="font-size: 0.95rem; color: #d32f2f; font-weight: 600; display: none;">⚠️ No slots available. Maximum 10 registrations reached.</div>`;
   footerEl.innerHTML = footerHtml;
+  
+  // Check registration count and update button state (hide button and show message when full)
+  checkRegistrationStatus(event.id, eventJson, calendarId);
+  
+  // Clear any previous error messages when opening modal
+  const errorEl = document.getElementById('registrationError');
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.innerHTML = '';
+  }
   
   // Show modal
   modalEl.classList.add('show');
@@ -1143,7 +1172,7 @@ function closeEventModal() {
 }
 
 // Handler function for Add to Calendar button - uses email from URL parameter
-function handleAddToCalendar(button) {
+async function handleAddToCalendar(button) {
   const eventJson = button.getAttribute('data-event-data');
   const calendarId = button.getAttribute('data-calendar-id');
   
@@ -1152,28 +1181,87 @@ function handleAddToCalendar(button) {
     return;
   }
   
-  // Get email from URL parameter or template variable
-  const urlParams = new URLSearchParams(window.location.search);
-  const userEmail = urlParams.get('email') || '{{ user_email }}' || '';
-  
-  if (!userEmail) {
-    alert('Email address is required. Please go back to the form and enter your email first.');
-    return;
-  }
-  
-  // Validate email format
-  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (!emailPattern.test(userEmail)) {
-    alert('Invalid email address. Please go back to the form and enter a valid email.');
-    return;
-  }
-  
   try {
     const eventData = JSON.parse(eventJson.replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
+    
+    // Check if event is full before proceeding - don't call API if full
+    const statusResponse = await fetch(`/api/calendar/events/${encodeURIComponent(eventData.id)}/registration-count`);
+    const statusData = await statusResponse.json();
+    
+    if (statusData.success && statusData.is_full) {
+      // Event is full - hide button and show message, don't call API
+      const buttonContainer = document.getElementById('registrationButtonContainer');
+      const fullMessageEl = document.getElementById('registrationFullMessage');
+      
+      if (buttonContainer) {
+        buttonContainer.style.display = 'none';
+      }
+      if (fullMessageEl) {
+        fullMessageEl.style.display = 'block';
+      }
+      return; // Don't call API
+    }
+    
+    // Get email from URL parameter or template variable
+    const urlParams = new URLSearchParams(window.location.search);
+    const userEmail = urlParams.get('email') || '{{ user_email }}' || '';
+    
+    if (!userEmail) {
+      alert('Email address is required. Please go back to the form and enter your email first.');
+      return;
+    }
+    
+    // Validate email format
+    const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailPattern.test(userEmail)) {
+      alert('Invalid email address. Please go back to the form and enter a valid email.');
+      return;
+    }
+    
     addToCalendar(eventData, calendarId, button, userEmail);
   } catch (error) {
     console.error('Error parsing event data:', error);
     alert('Error loading event data');
+  }
+}
+
+// Check registration status for an event
+async function checkRegistrationStatus(eventId, eventJson, calendarId) {
+  try {
+    const response = await fetch(`/api/calendar/events/${encodeURIComponent(eventId)}/registration-count`);
+    const data = await response.json();
+    
+    if (data.success) {
+      const buttonContainer = document.getElementById('registrationButtonContainer');
+      const fullMessageEl = document.getElementById('registrationFullMessage');
+      
+      if (data.is_full) {
+        // Event is full - hide button and show message
+        if (buttonContainer) {
+          buttonContainer.style.display = 'none';
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'block';
+        }
+      } else {
+        // Event has slots - show button and hide message
+        if (buttonContainer) {
+          buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleAddToCalendar(this); return false;">📅 Add to Calendar <span style="font-size: 0.8em;">↓</span></button>`;
+          buttonContainer.style.display = 'block';
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'none';
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking registration status:', error);
+    // On error, show button anyway
+    const buttonContainer = document.getElementById('registrationButtonContainer');
+    if (buttonContainer && eventJson && calendarId) {
+      buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleAddToCalendar(this); return false;">📅 Add to Calendar <span style="font-size: 0.8em;">↓</span></button>`;
+      buttonContainer.style.display = 'block';
+    }
   }
 }
 
@@ -1213,6 +1301,19 @@ async function addToCalendar(eventData, calendarId, button, userEmail) {
       button.innerHTML = '✓ Added!';
       button.style.background = 'linear-gradient(135deg, rgba(25, 135, 84, 0.9) 0%, rgba(40, 167, 69, 0.9) 100%)';
       
+      // Update button state if event is full - hide button and show message
+      if (data.registration_count !== undefined && data.registration_count >= 10) {
+        const buttonContainer = document.getElementById('registrationButtonContainer');
+        const fullMessageEl = document.getElementById('registrationFullMessage');
+        
+        if (buttonContainer) {
+          buttonContainer.style.display = 'none';
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'block';
+        }
+      }
+      
       // Optionally open the event in Google Calendar
       if (data.event && data.event.htmlLink) {
         setTimeout(() => {
@@ -1220,27 +1321,72 @@ async function addToCalendar(eventData, calendarId, button, userEmail) {
         }, 500);
       }
       
-      // Reset button after 3 seconds
-      setTimeout(() => {
+      // Reset button after 3 seconds (if not full)
+      if (data.registration_count < 10) {
+        setTimeout(() => {
+          button.disabled = false;
+          button.innerHTML = originalText;
+          button.style.background = '';
+        }, 3000);
+      }
+    } else {
+      // Handle errors - show error message in UI
+      const errorEl = document.getElementById('registrationError');
+      
+      if (data.full) {
+        // Event is full - hide button and show message
+        const buttonContainer = document.getElementById('registrationButtonContainer');
+        const fullMessageEl = document.getElementById('registrationFullMessage');
+        
+        if (buttonContainer) {
+          buttonContainer.style.display = 'none';
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'block';
+        }
+      } else if (data.already_registered) {
+        // User already registered
+        button.innerHTML = '✓ Already Registered';
+        button.style.background = 'linear-gradient(135deg, rgba(25, 135, 84, 0.9) 0%, rgba(40, 167, 69, 0.9) 100%)';
+        button.disabled = true;
+        button.style.opacity = '0.7';
+        button.style.cursor = 'not-allowed';
+        button.style.pointerEvents = 'none';
+        
+        if (errorEl) {
+          errorEl.style.display = 'block';
+          errorEl.innerHTML = '<span style="color: #1976d2; font-weight: 500;">ℹ️ ' + escapeHtml(data.error || 'You are already registered for this event') + '</span>';
+        }
+      } else {
+        // Other errors
+        if (errorEl) {
+          errorEl.style.display = 'block';
+          errorEl.innerHTML = '<span style="color: #d32f2f; font-weight: 600;">⚠️ ' + escapeHtml(data.error || 'Failed to add as attendee') + '</span>';
+        }
+        
+        // Reset button
         button.disabled = false;
         button.innerHTML = originalText;
-        button.style.background = '';
-      }, 3000);
-    } else {
-      // If there's an alternative (like event_html_link), offer it
-      if (data.event_html_link) {
-        const useLink = confirm(data.error + '\n\nWould you like to open the event in Google Calendar to add yourself manually?');
-        if (useLink) {
-          window.open(data.event_html_link, '_blank');
+        
+        if (data.event_html_link) {
+          const useLink = confirm(data.error + '\n\nWould you like to open the event in Google Calendar to add yourself manually?');
+          if (useLink) {
+            window.open(data.event_html_link, '_blank');
+          }
         }
       }
-      throw new Error(data.error || 'Failed to add as attendee');
     }
   } catch (error) {
     console.error('Error adding attendee to event:', error);
     button.disabled = false;
     button.innerHTML = originalText;
-    alert('Failed to add as attendee: ' + error.message);
+    
+    // Show error in UI
+    const errorEl = document.getElementById('registrationError');
+    if (errorEl) {
+      errorEl.style.display = 'block';
+      errorEl.innerHTML = '<span style="color: #d32f2f; font-weight: 600;">⚠️ ' + escapeHtml(error.message || 'Failed to add as attendee') + '</span>';
+    }
   }
 }
 

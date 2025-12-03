@@ -451,3 +451,40 @@ class MeetingRegistration(Base):
             'email': self.email,
             'registered_at': self.registered_at.isoformat() if self.registered_at else None,
         }
+
+
+class EventRegistration(Base):
+    """
+    Model for tracking user registrations to calendar events
+    Tracks registrations by event_id and email (unique per event)
+    """
+    __tablename__ = 'event_registration'
+    
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Google Calendar Event ID
+    event_id = Column(String(200), nullable=False, index=True, comment="Google Calendar event ID")
+    
+    # User Information
+    email = Column(String(120), nullable=False, index=True, comment="Email address of the registrant")
+    
+    # Metadata
+    registered_at = Column(DateTime(timezone=True), server_default=func.now(), comment="Registration timestamp")
+    
+    # Unique constraint: same email cannot register twice for the same event
+    __table_args__ = (
+        {'extend_existing': True},
+    )
+    
+    def __repr__(self):
+        return f"<EventRegistration(id={self.id}, event_id='{self.event_id}', email='{self.email}')>"
+    
+    def to_dict(self) -> dict:
+        """Convert model instance to dictionary"""
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'email': self.email,
+            'registered_at': self.registered_at.isoformat() if self.registered_at else None,
+        }

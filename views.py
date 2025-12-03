@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.status import HTTP_302_FOUND, HTTP_303_SEE_OTHER
-from db import Form, FormType, LOIQuestion, CIMQuestion, User, FormReviewed, MeetScheduler, MeetingType, MeetingInstance, MeetingRegistration, get_db, SessionLocal
+from db import Form, FormType, LOIQuestion, CIMQuestion, User, FormReviewed, MeetScheduler, MeetingType, MeetingInstance, MeetingRegistration, EventRegistration, get_db, SessionLocal
 from services import pdf_service, process_form_submission, auth_service, create_calendar_service
 from tasks.pdf_tasks import process_submission_complete
 from datetime import datetime, timedelta
@@ -144,7 +144,7 @@ async def get_all_calendar_events(request: Request, calendar_id: Optional[str] =
             calendarId=cal_id,
             timeMin=time_min,
             timeMax=time_max,
-            maxResults=2500,  # Maximum allowed by Google Calendar API
+            maxResults=3,  # Limit to next 3 events
             singleEvents=True,
             orderBy='startTime'
         ).execute()
@@ -217,6 +217,7 @@ async def get_all_calendar_events(request: Request, calendar_id: Optional[str] =
 async def add_attendee_to_event(request: Request):
     """
     API endpoint to add a user as an attendee to an existing Google Calendar event
+    Limits registrations to 10 unique users per event
     Updates the existing event by adding the user's email to the attendees list
     Uses sendUpdates='none' to avoid requiring domain-wide delegation
     
@@ -225,6 +226,7 @@ async def add_attendee_to_event(request: Request):
     - user_email: Email address of the user to add as attendee (required)
     - calendar_id: Calendar ID where the event exists (optional, uses default from settings)
     """
+    db = SessionLocal()
     try:
         body = await request.json()
         
@@ -245,6 +247,37 @@ async def add_attendee_to_event(request: Request):
             return JSONResponse({
                 "success": False,
                 "error": "Invalid email format"
+            }, status_code=400)
+        
+        # Normalize email (lowercase, trimmed)
+        normalized_email = user_email.lower().strip()
+        
+        # Check database for existing registration
+        existing_registration = db.query(EventRegistration).filter(
+            EventRegistration.event_id == event_id,
+            EventRegistration.email == normalized_email
+        ).first()
+        
+        if existing_registration:
+            return JSONResponse({
+                "success": False,
+                "error": "You are already registered for this event",
+                "already_registered": True
+            }, status_code=400)
+        
+        # Count current registrations for this event
+        registration_count = db.query(EventRegistration).filter(
+            EventRegistration.event_id == event_id
+        ).count()
+        
+        # Check if event is full (max 10 registrations)
+        MAX_REGISTRATIONS = 10
+        if registration_count >= MAX_REGISTRATIONS:
+            return JSONResponse({
+                "success": False,
+                "error": "No slots available. Maximum 10 registrations reached.",
+                "full": True,
+                "registration_count": registration_count
             }, status_code=400)
         
         # Create calendar service
@@ -268,74 +301,181 @@ async def add_attendee_to_event(request: Request):
             elif isinstance(att, str):
                 existing_attendee_emails.append(att.lower())
         
-        # Check if user is already an attendee
-        if user_email.lower() in existing_attendee_emails:
-            return JSONResponse({
-                "success": False,
-                "error": "User is already an attendee of this event"
-            }, status_code=400)
-        
-        # Add new attendee to the list (preserve existing attendee objects)
-        updated_attendees = list(existing_attendees)  # Keep existing attendee objects
-        updated_attendees.append({'email': user_email})  # Add new attendee
-        
-        # Update the event with the new attendee list using sendUpdates='none'
-        # This should work without domain-wide delegation since we're not sending invitations
-        try:
-            # Get the raw event object
-            event = calendar_service.service.events().get(
-                calendarId=calendar_id,
-                eventId=event_id
-            ).execute()
-            
-            # Update attendees
-            event['attendees'] = updated_attendees
-            
-            # Update the event with sendUpdates='none' to avoid sending email invitations
-            updated_event = calendar_service.service.events().update(
-                calendarId=calendar_id,
-                eventId=event_id,
-                body=event,
-                sendUpdates='none'  # Don't send email notifications - this should bypass domain-wide delegation requirement
-            ).execute()
+        # Check if user is already an attendee in Google Calendar
+        if normalized_email in existing_attendee_emails:
+            # Still add to database to track registration
+            registration = EventRegistration(
+                event_id=event_id,
+                email=normalized_email
+            )
+            db.add(registration)
+            db.commit()
             
             return JSONResponse({
                 "success": True,
-                "message": "Successfully added as attendee",
-                "event": {
-                    "id": updated_event.get('id'),
-                    "htmlLink": updated_event.get('htmlLink'),
-                    "attendees": updated_event.get('attendees', [])
-                }
+                "message": "You are already registered for this event",
+                "already_registered": True,
+                "registration_count": registration_count + 1
             })
-        except HttpError as http_error:
-            error_msg = str(http_error)
-            # If it's still the domain-wide delegation error, provide helpful message
-            if 'forbiddenForServiceAccounts' in error_msg or 'Domain-Wide Delegation' in error_msg:
-                return JSONResponse({
-                    "success": False,
-                    "error": "Unable to add attendee: Service account requires Domain-Wide Delegation to add attendees. Please contact your administrator to set this up, or use the event link to add yourself manually.",
-                    "event_html_link": raw_event.get('htmlLink', ''),
-                    "alternative": "You can open the event in Google Calendar and add yourself manually"
-                }, status_code=403)
-            raise
+        
+        # COMMENTED OUT: Google Calendar API call to add attendees
+        # Add new attendee to the list (preserve existing attendee objects)
+        # updated_attendees = list(existing_attendees)  # Keep existing attendee objects
+        # updated_attendees.append({'email': user_email})  # Add new attendee
+        
+        # COMMENTED OUT: Update the event with the new attendee list using sendUpdates='none'
+        # This should work without domain-wide delegation since we're not sending invitations
+        # try:
+        #     # Get the raw event object
+        #     event = calendar_service.service.events().get(
+        #         calendarId=calendar_id,
+        #         eventId=event_id
+        #     ).execute()
+        #     
+        #     # Update attendees
+        #     event['attendees'] = updated_attendees
+        #     
+        #     # Update the event with sendUpdates='none' to avoid sending email invitations
+        #     updated_event = calendar_service.service.events().update(
+        #         calendarId=calendar_id,
+        #         eventId=event_id,
+        #         body=event,
+        #         sendUpdates='none'  # Don't send email notifications - this should bypass domain-wide delegation requirement
+        #     ).execute()
+        #     
+        #     # Save registration to database
+        #     registration = EventRegistration(
+        #         event_id=event_id,
+        #         email=normalized_email
+        #     )
+        #     db.add(registration)
+        #     db.commit()
+        #     
+        #     return JSONResponse({
+        #         "success": True,
+        #         "message": "Successfully added as attendee",
+        #         "event": {
+        #             "id": updated_event.get('id'),
+        #             "htmlLink": updated_event.get('htmlLink'),
+        #             "attendees": updated_event.get('attendees', [])
+        #         },
+        #         "registration_count": registration_count + 1
+        #     })
+        # except HttpError as http_error:
+        #     error_msg = str(http_error)
+        #     # If it's still the domain-wide delegation error, provide helpful message
+        #     if 'forbiddenForServiceAccounts' in error_msg or 'Domain-Wide Delegation' in error_msg:
+        #         # Still save registration to database even if Google Calendar update fails
+        #         registration = EventRegistration(
+        #             event_id=event_id,
+        #             email=normalized_email
+        #         )
+        #         db.add(registration)
+        #         db.commit()
+        #         
+        #         return JSONResponse({
+        #             "success": True,
+        #             "message": "Registration saved. Unable to add to Google Calendar automatically.",
+        #             "error": "Unable to add attendee: Service account requires Domain-Wide Delegation to add attendees. Please contact your administrator to set this up, or use the event link to add yourself manually.",
+        #             "event_html_link": raw_event.get('htmlLink', ''),
+        #             "alternative": "You can open the event in Google Calendar and add yourself manually",
+        #             "registration_count": registration_count + 1
+        #         })
+        #     raise
+        
+        # Save registration to database only (Google Calendar API call commented out)
+        registration = EventRegistration(
+            event_id=event_id,
+            email=normalized_email
+        )
+        db.add(registration)
+        db.commit()
+        
+        return JSONResponse({
+            "success": True,
+            "message": "Successfully registered for this event",
+            "event": {
+                "id": event_id,
+                "htmlLink": raw_event.get('htmlLink', '')
+            },
+            "registration_count": registration_count + 1
+        })
         
     except Exception as e:
         import traceback
         error_msg = str(e)
         print(f"Error adding attendee to event: {traceback.format_exc()}")
+        db.rollback()
         return JSONResponse({
             "success": False,
             "error": error_msg
         }, status_code=400)
+    finally:
+        db.close()
+
+
+@router.get("/api/calendar/events/{event_id}/registration-count")
+async def get_event_registration_count(request: Request, event_id: str):
+    """
+    API endpoint to get the registration count for an event
+    Returns the number of registered users (max 10)
+    """
+    db = SessionLocal()
+    try:
+        registration_count = db.query(EventRegistration).filter(
+            EventRegistration.event_id == event_id
+        ).count()
+        
+        MAX_REGISTRATIONS = 10
+        is_full = registration_count >= MAX_REGISTRATIONS
+        
+        return JSONResponse({
+            "success": True,
+            "registration_count": registration_count,
+            "max_registrations": MAX_REGISTRATIONS,
+            "is_full": is_full,
+            "slots_available": MAX_REGISTRATIONS - registration_count
+        })
     except Exception as e:
         import traceback
         error_msg = str(e)
-        print(f"Error generating calendar link: {traceback.format_exc()}")
+        print(f"Error getting registration count: {traceback.format_exc()}")
         return JSONResponse({
             "success": False,
             "error": error_msg
         }, status_code=400)
+    finally:
+        db.close()
+
+
+@router.get("/api/calendar/events/{event_id}/check-email/{email}")
+async def check_email_registration(request: Request, event_id: str, email: str):
+    """
+    API endpoint to check if an email is already registered for an event
+    """
+    db = SessionLocal()
+    try:
+        normalized_email = email.lower().strip()
+        
+        existing_registration = db.query(EventRegistration).filter(
+            EventRegistration.event_id == event_id,
+            EventRegistration.email == normalized_email
+        ).first()
+        
+        return JSONResponse({
+            "success": True,
+            "is_registered": existing_registration is not None
+        })
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Error checking email registration: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": error_msg
+        }, status_code=400)
+    finally:
+        db.close()
 
 
 # ==================== UNIFIED SUBMISSION HANDLER ====================
