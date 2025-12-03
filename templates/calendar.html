@@ -1363,7 +1363,7 @@ async function checkRegistrationStatus(eventId, eventJson, calendarId) {
       } else {
         // Event has slots - show button that does both registration AND opens Google Calendar
         if (buttonContainer) {
-          buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Register & Add to Calendar</button>`;
+          buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
         }
         if (fullMessageEl) {
           fullMessageEl.style.display = 'none';
