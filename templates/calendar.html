@@ -1133,9 +1133,9 @@ function showEventDetails(event) {
   // Build footer with buttons
   const calendarId = '{{ calendar_id }}' || 'primary';
   let footerHtml = '';
-  if (event.hangoutLink) {
-    footerHtml += `<a href="${escapeHtml(event.hangoutLink)}" target="_blank" class="btn-join-meeting" style="opacity: 0.5; pointer-events: none; cursor: not-allowed;">📹 Join Meeting</a>`;
-  }
+  // if (event.hangoutLink) {
+    //footerHtml += `<a href="${escapeHtml(event.hangoutLink)}" target="_blank" class="btn-join-meeting" style="opacity: 0.5; pointer-events: none; cursor: not-allowed;">📹 Join Meeting</a>`;
+  //}
   // Add to Calendar button - store event data and calendar_id, use onclick to pass button element
   const eventJson = JSON.stringify(event).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   footerHtml += `<div id="registrationButtonContainer"></div>`;
