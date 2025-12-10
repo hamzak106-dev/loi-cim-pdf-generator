@@ -185,6 +185,209 @@
     </div>
   </div>
   
+  <!-- Invite User Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h4 class="mb-0"><i class="bi bi-person-plus"></i> Invite User</h4>
+        </div>
+        <div class="card-body">
+          <form id="invite-user-form" onsubmit="inviteUser(event)">
+            <div class="row">
+              <div class="col-md-4">
+                <label for="user-email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                <input 
+                  type="email" 
+                  class="form-control" 
+                  id="user-email" 
+                  name="email" 
+                  required
+                  placeholder="user@example.com"
+                >
+              </div>
+              <div class="col-md-4">
+                <label for="user-name" class="form-label">Name (Optional)</label>
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  id="user-name" 
+                  name="name"
+                  placeholder="User's full name"
+                >
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100" id="invite-btn">
+                  <i class="bi bi-send"></i> Send Invitation
+                </button>
+              </div>
+            </div>
+          </form>
+          <div id="invite-message" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Users List Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h4 class="mb-0"><i class="bi bi-people"></i> Invited Users</h4>
+            <span class="text-muted">Total: {{ user_total }}</span>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-container">
+            <table class="table table-hover mb-0" id="users-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Status</th>
+                  <th>Created At</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for user in users %}
+                <tr>
+                  <td><strong>{{ user.name }}</strong></td>
+                  <td>{{ user.email }}</td>
+                  <td>
+                    {% if user.is_active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if user.created_at %}
+                      {{ user.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% else %}
+                      --
+                    {% endif %}
+                  </td>
+                  <td>
+                    <button 
+                      class="btn btn-sm btn-info me-2" 
+                      onclick="resendUserCredentials({{ user.id }}, '{{ user.email }}', '{{ user.name }}')"
+                      title="Resend Credentials"
+                    >
+                      <i class="bi bi-envelope-paper"></i> Resend Credentials
+                    </button>
+                    <button 
+                      class="btn btn-sm btn-danger" 
+                      onclick="deleteUser({{ user.id }}, '{{ user.email }}')"
+                      title="Delete User"
+                    >
+                      <i class="bi bi-trash"></i> Delete
+                    </button>
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="5" class="text-center text-muted">No users invited yet</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination -->
+          {% if user_total_pages > 1 %}
+          <div class="card-footer">
+            <nav aria-label="Users pagination">
+              <ul class="pagination justify-content-center mb-0">
+                {% if user_page > 1 %}
+                <li class="page-item">
+                  <a class="page-link" href="?user_page={{ user_page - 1 }}{% if current_filter != 'all' %}&filter_type={{ current_filter }}{% endif %}">Previous</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+                
+                {% if user_total_pages <= 7 %}
+                  {# Show all pages if 7 or fewer #}
+                  {% for page_num in range(1, user_total_pages + 1) %}
+                    {% if page_num == user_page %}
+                    <li class="page-item active">
+                      <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                      <a class="page-link" href="?user_page={{ page_num }}{% if current_filter != 'all' %}&filter_type={{ current_filter }}{% endif %}">{{ page_num }}</a>
+                    </li>
+                    {% endif %}
+                  {% endfor %}
+                {% else %}
+                  {# Show first, last, current, and pages around current #}
+                  {% set start_page = user_page - 1 if user_page > 1 else 1 %}
+                  {% set end_page = user_page + 1 if user_page < user_total_pages else user_total_pages %}
+                  
+                  {% if user_page > 1 %}
+                  <li class="page-item">
+                    <a class="page-link" href="?user_page=1{% if current_filter != 'all' %}&filter_type={{ current_filter }}{% endif %}">1</a>
+                  </li>
+                  {% if user_page > 3 %}
+                  <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                  </li>
+                  {% endif %}
+                  {% endif %}
+                  
+                  {% for page_num in range(start_page, end_page + 1) %}
+                    {% if page_num == user_page %}
+                    <li class="page-item active">
+                      <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% else %}
+                    <li class="page-item">
+                      <a class="page-link" href="?user_page={{ page_num }}{% if current_filter != 'all' %}&filter_type={{ current_filter }}{% endif %}">{{ page_num }}</a>
+                    </li>
+                    {% endif %}
+                  {% endfor %}
+                  
+                  {% if user_page < user_total_pages %}
+                  {% if user_page < user_total_pages - 2 %}
+                  <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                  </li>
+                  {% endif %}
+                  <li class="page-item">
+                    <a class="page-link" href="?user_page={{ user_total_pages }}{% if current_filter != 'all' %}&filter_type={{ current_filter }}{% endif %}">{{ user_total_pages }}</a>
+                  </li>
+                  {% endif %}
+                {% endif %}
+                
+                {% if user_page < user_total_pages %}
+                <li class="page-item">
+                  <a class="page-link" href="?user_page={{ user_page + 1 }}{% if current_filter != 'all' %}&filter_type={{ current_filter }}{% endif %}">Next</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+              </ul>
+            </nav>
+            <div class="text-center mt-2">
+              <small class="text-muted">
+                Showing {{ ((user_page - 1) * 5) + 1 }} to 
+                {% if user_page * 5 > user_total %}{{ user_total }}{% else %}{{ user_page * 5 }}{% endif %} 
+                of {{ user_total }} users
+              </small>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <!-- Unified Forms Table -->
   <div class="row mb-5">
     <div class="col-12">
@@ -445,6 +648,197 @@ function filterTable() {
         tr[i].style.display = 'none';
       }
     }
+  }
+}
+
+async function inviteUser(event) {
+  event.preventDefault();
+  
+  const form = event.target;
+  const formData = new FormData(form);
+  const inviteBtn = document.getElementById('invite-btn');
+  const messageDiv = document.getElementById('invite-message');
+  
+  // Disable button and show loading
+  inviteBtn.disabled = true;
+  inviteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+  messageDiv.innerHTML = '';
+  
+  try {
+    const response = await fetch('/admin/invite-user', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Show credentials modal
+      showCredentialsModal(data.credentials, data.email_sent, false, null);
+      
+      // Reset form
+      form.reset();
+      
+      // Show success message
+      messageDiv.innerHTML = '<div class="alert alert-success">User invited successfully!</div>';
+      
+      // Reload page after 2 seconds to update user count
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else {
+      messageDiv.innerHTML = `<div class="alert alert-danger">${data.error || 'Failed to invite user'}</div>`;
+    }
+  } catch (error) {
+    messageDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+  } finally {
+    inviteBtn.disabled = false;
+    inviteBtn.innerHTML = '<i class="bi bi-send"></i> Send Invitation';
+  }
+}
+
+function showCredentialsModal(credentials, emailSent, passwordReset, message) {
+  let alertMessage = '';
+  if (passwordReset) {
+    alertMessage = `<div class="alert alert-warning">
+      <i class="bi bi-exclamation-triangle"></i> 
+      <strong>Password Reset:</strong> ${message || 'Password has been reset. New credentials are shown below.'}
+    </div>`;
+  } else if (emailSent) {
+    alertMessage = `<div class="alert alert-info">
+      <i class="bi bi-info-circle"></i> 
+      Credentials have been sent to the user's email.
+    </div>`;
+  } else {
+    alertMessage = `<div class="alert alert-info">
+      <i class="bi bi-info-circle"></i> 
+      Note: Email could not be sent, but credentials are shown below.
+    </div>`;
+  }
+  
+  const modal = `
+    <div class="modal fade" id="credentialsModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog">
+        <div class="modal-content" style="background-color: rgba(5, 13, 30, 0.95); color: #fff;">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-key"></i> User Credentials</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            ${alertMessage}
+            <div class="mb-3">
+              <label class="form-label fw-bold">Email:</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="cred-email" value="${credentials.email}" readonly>
+                <button class="btn btn-outline-light" onclick="copyToClipboard('${credentials.email}')">
+                  <i class="bi bi-clipboard"></i> Copy
+                </button>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Password:</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="cred-password" value="${credentials.password}" readonly>
+                <button class="btn btn-outline-light" onclick="copyToClipboard('${credentials.password}')">
+                  <i class="bi bi-clipboard"></i> Copy
+                </button>
+              </div>
+            </div>
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle"></i> 
+              <strong>Important:</strong> Please save these credentials. The password cannot be retrieved later.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Remove existing modal if any
+  const existing = document.getElementById('credentialsModal');
+  if (existing) existing.remove();
+  
+  // Add modal to body
+  document.body.insertAdjacentHTML('beforeend', modal);
+  
+  // Show modal
+  const modalElement = new bootstrap.Modal(document.getElementById('credentialsModal'));
+  modalElement.show();
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // Show temporary feedback
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+    btn.classList.add('btn-success');
+    btn.classList.remove('btn-outline-light');
+    
+    setTimeout(() => {
+      btn.innerHTML = originalHTML;
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-outline-light');
+    }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+    alert('Failed to copy to clipboard');
+  });
+}
+
+async function resendUserCredentials(userId, email, name) {
+  try {
+    // Resend credentials email (will reset password if not stored)
+    const response = await fetch(`/admin/user/${userId}/resend-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (data.success && data.credentials) {
+      // Show credentials modal
+      showCredentialsModal(
+        data.credentials,
+        data.email_sent || false,
+        data.password_reset || false,
+        data.message || 'Credentials have been sent to the user\'s email.'
+      );
+    } else {
+      alert(data.error || data.message || 'Failed to resend credentials.');
+    }
+  } catch (error) {
+    alert('Error resending credentials: ' + error.message);
+  }
+}
+
+async function deleteUser(userId, email) {
+  if (!confirm(`Are you sure you want to delete user "${email}"?\n\nThis action cannot be undone.`)) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/admin/user/${userId}`, {
+      method: 'DELETE'
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Show success message
+      alert('User deleted successfully!');
+      // Reload page to update user list
+      window.location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Failed to delete user'));
+    }
+  } catch (error) {
+    alert('Error deleting user: ' + error.message);
   }
 }
 </script>

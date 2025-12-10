@@ -23,6 +23,8 @@ router = APIRouter()
 
 # Session management (simple in-memory for demo - use proper session management in production)
 active_sessions = {}
+user_sessions = {}  # Separate session storage for regular users
+user_passwords = {}  # Temporary storage for user passwords (user_id -> password) - for admin viewing
 
 def get_current_admin(request: Request):
     """Get current admin from session"""
@@ -38,12 +40,91 @@ def require_admin(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     return admin
 
+def get_current_user(request: Request):
+    """Get current user from session"""
+    session_id = request.cookies.get("user_session")
+    if not session_id or session_id not in user_sessions:
+        return None
+    return user_sessions[session_id]
+
+def require_user(request: Request):
+    """Require user authentication"""
+    user = get_current_user(request)
+    if not user:
+        return None
+    return user
+
 
 # ==================== PUBLIC ROUTES ====================
 
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """User login page"""
+    # If already logged in, redirect to home
+    if get_current_user(request):
+        return RedirectResponse(url="/", status_code=HTTP_302_FOUND)
+    return templates.TemplateResponse("login.html", {
+        "request": request
+    })
+
+
+@router.post("/login")
+async def user_login(
+    request: Request,
+    email: str = FormField(...),
+    password: str = FormField(...)
+):
+    """Handle user login"""
+    success, user, message = auth_service.authenticate_user(email, password)
+    
+    if not success or not user:
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Invalid email or password"
+        })
+    
+    # Check if account is active
+    if not user.is_active:
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Your account is inactive. Please contact an administrator."
+        })
+    
+    # Create session
+    import secrets
+    session_id = secrets.token_urlsafe(32)
+    user_sessions[session_id] = {
+        'user_id': user.id,
+        'email': user.email,
+        'name': user.name,
+        'user_type': user.user_type
+    }
+    
+    # Redirect to home page
+    response = RedirectResponse(url="/", status_code=HTTP_302_FOUND)
+    response.set_cookie(key="user_session", value=session_id, httponly=True)
+    return response
+
+
+@router.get("/logout")
+async def user_logout(request: Request):
+    """Logout user"""
+    session_id = request.cookies.get("user_session")
+    if session_id in user_sessions:
+        del user_sessions[session_id]
+    
+    response = RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    response.delete_cookie("user_session")
+    return response
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
-    """Homepage"""
+    """Homepage - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
     return templates.TemplateResponse("index.html", {
         "request": request,
         "page_title": "Business Acquisition Services"
@@ -52,7 +133,11 @@ async def home_page(request: Request):
 
 @router.get("/business-form", response_class=HTMLResponse)
 async def business_form_page(request: Request):
-    """LOI Questions form page"""
+    """LOI Questions form page - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
     return templates.TemplateResponse("business_form.html", {
         "request": request,
         "page_title": "LOI Questions",
@@ -62,7 +147,11 @@ async def business_form_page(request: Request):
 
 @router.get("/cim-form", response_class=HTMLResponse)
 async def cim_form_page(request: Request):
-    """CIM Questions form page"""
+    """CIM Questions form page - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
     return templates.TemplateResponse("cim_questions.html", {
         "request": request,
         "page_title": "CIM Questions",
@@ -72,7 +161,11 @@ async def cim_form_page(request: Request):
 
 @router.get("/cim-training-form", response_class=HTMLResponse)
 async def cim_training_form_page(request: Request):
-    """CIM Training Questions form page"""
+    """CIM Training Questions form page - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
     return templates.TemplateResponse("cim_training.html", {
         "request": request,
         "page_title": "CIM Questions - Training"
@@ -81,7 +174,11 @@ async def cim_training_form_page(request: Request):
 
 @router.get("/calendar", response_class=HTMLResponse)
 async def calendar_page(request: Request, form_type: Optional[str] = None, host: Optional[str] = None, email: Optional[str] = None):
-    """Calendar page for scheduling calls"""
+    """Calendar page for scheduling calls - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
     return templates.TemplateResponse("calendar.html", {
         "request": request,
         "page_title": "Schedule a Live Call",
@@ -598,19 +695,28 @@ async def handle_form_submission(request: Request, form_type: str, template_name
 
 @router.post("/submit-business")
 async def submit_loi_form(request: Request):
-    """Submit LOI Questions form"""
+    """Submit LOI Questions form - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "LOI", "business_form.html")
 
 
 @router.post("/submit-cim")
 async def submit_cim_form(request: Request):
-    """Submit CIM Questions form"""
+    """Submit CIM Questions form - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "CIM", "cim_questions.html")
 
 
 @router.post("/submit-cim-training")
 async def submit_cim_training_form(request: Request):
-    """Submit CIM Training Questions form"""
+    """Submit CIM Training Questions form - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "CIM_TRAINING", "cim_training.html")
 
 
@@ -738,6 +844,16 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
         reviewed_count = len(reviewed_form_ids)
         user_count = db.query(User).count()
         
+        # Get users with pagination (excluding admins)
+        page = int(request.query_params.get("user_page", 1))
+        per_page = 5
+        offset = (page - 1) * per_page
+        
+        users_query = db.query(User).filter(User.user_type == 'user').order_by(User.created_at.desc())
+        total_users = users_query.count()
+        all_users = users_query.offset(offset).limit(per_page).all()
+        total_pages = (total_users + per_page - 1) // per_page
+        
         return templates.TemplateResponse("accounts/dashboard.html", {
             "request": request,
             "admin_name": admin['name'],
@@ -749,11 +865,309 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
             "total_count": loi_count + cim_count + cim_training_count,
             "reviewed_count": reviewed_count,
             "user_count": user_count,
+            "users": all_users,
+            "user_page": page,
+            "user_total_pages": total_pages,
+            "user_total": total_users,
             "current_filter": filter_type,
             "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
         })
     finally:
         db.close()
+
+
+@router.post("/admin/invite-user")
+async def invite_user(
+    request: Request,
+    email: str = FormField(...),
+    name: Optional[str] = FormField(None)
+):
+    """Invite a new user - generates password and sends credentials via email"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        import secrets
+        import string
+        
+        # Generate secure password (12 characters: letters, digits, and special chars)
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = ''.join(secrets.choice(alphabet) for i in range(12))
+        
+        # Create user account
+        success, user, message = auth_service.create_user(
+            name=name or email.split('@')[0],  # Use email prefix if name not provided
+            email=email,
+            password=password,
+            user_type='user'
+        )
+        
+        if not success:
+            return JSONResponse({
+                "success": False,
+                "error": message
+            }, status_code=400)
+        
+        # Store password temporarily for admin viewing
+        user_passwords[user.id] = password
+        
+        # Send invitation email
+        email_sent = False
+        try:
+            from services import email_service
+            email_sent = email_service.send_invitation_email(
+                email=email,
+                password=password,
+                name=user.name
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to send invitation email: {e}")
+            # Continue even if email fails - admin can still see credentials
+        
+        return JSONResponse({
+            "success": True,
+            "message": "User created successfully",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name
+            },
+            "credentials": {
+                "email": email,
+                "password": password
+            },
+            "email_sent": email_sent
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ Error inviting user: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.get("/admin/user/{user_id}/credentials")
+async def get_user_credentials(request: Request, user_id: int):
+    """Get user credentials (password if available)"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Check if password is stored (for recently created users)
+            password = user_passwords.get(user_id)
+            
+            if password:
+                # Password is stored, assume email was sent when user was created
+                return JSONResponse({
+                    "success": True,
+                    "credentials": {
+                        "email": user.email,
+                        "password": password
+                    },
+                    "email_sent": True  # Assume email was sent when user was created
+                })
+            else:
+                # Password not available - admin can delete and re-invite user
+                return JSONResponse({
+                    "success": False,
+                    "error": "Password not available. Password was not stored or user was created before this feature was added.",
+                    "message": "To provide new credentials, delete this user and create a new invitation."
+                })
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        print(f"❌ Error getting credentials: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.post("/admin/user/{user_id}/resend-email")
+async def resend_user_email(request: Request, user_id: int):
+    """Resend credentials email to user - resets password if not stored"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Check if password is stored
+            stored_password = user_passwords.get(user_id)
+            password_was_reset = False
+            
+            # If password not stored, reset it
+            if not stored_password:
+                success, new_password, message = auth_service.reset_user_password(user_id)
+                if success and new_password:
+                    password = new_password
+                    user_passwords[user_id] = password
+                    password_was_reset = True
+                else:
+                    return JSONResponse({
+                        "success": False,
+                        "error": message or "Failed to reset password"
+                    })
+            else:
+                password = stored_password
+            
+            # Send email with credentials
+            email_sent = False
+            try:
+                from services import email_service
+                email_result = email_service.send_invitation_email(
+                    email=user.email,
+                    password=password,
+                    name=user.name
+                )
+                email_sent = bool(email_result)
+                print(f"📧 Resend credentials email result: {email_sent}")
+            except Exception as e:
+                print(f"⚠️ Failed to resend credentials email: {e}")
+                email_sent = False
+            
+            return JSONResponse({
+                "success": True,
+                "credentials": {
+                    "email": user.email,
+                    "password": password
+                },
+                "email_sent": email_sent,
+                "password_reset": password_was_reset,
+                "message": "Credentials have been sent to the user's email." if email_sent else "Email could not be sent, but credentials are shown below."
+            })
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        print(f"❌ Error resending email: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.post("/admin/user/{user_id}/reset-password")
+async def reset_user_password_endpoint(request: Request, user_id: int):
+    """Reset user password and return new credentials"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Reset password
+            success, new_password, message = auth_service.reset_user_password(user_id)
+            
+            if success and new_password:
+                # Store the new password
+                user_passwords[user_id] = new_password
+                
+                # Send email with new password
+                email_sent = False
+                try:
+                    from services import email_service
+                    email_result = email_service.send_invitation_email(
+                        email=user.email,
+                        password=new_password,
+                        name=user.name
+                    )
+                    email_sent = bool(email_result)
+                    print(f"📧 Password reset email send result: {email_sent}")
+                except Exception as e:
+                    print(f"⚠️ Failed to send password reset email: {e}")
+                    email_sent = False
+                
+                return JSONResponse({
+                    "success": True,
+                    "credentials": {
+                        "email": user.email,
+                        "password": new_password
+                    },
+                    "password_reset": True,
+                    "email_sent": email_sent,
+                    "message": "Password has been reset. New credentials are shown below."
+                })
+            else:
+                return JSONResponse({
+                    "success": False,
+                    "error": message or "Failed to reset password"
+                })
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        print(f"❌ Error resetting password: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.delete("/admin/user/{user_id}")
+async def delete_user(request: Request, user_id: int):
+    """Delete a user"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Prevent deleting admin users
+            if user.is_admin():
+                return JSONResponse({"success": False, "error": "Cannot delete admin users"}, status_code=400)
+            
+            # Delete user
+            db.delete(user)
+            db.commit()
+            
+            # Remove password from temporary storage if exists
+            if user_id in user_passwords:
+                del user_passwords[user_id]
+            
+            return JSONResponse({
+                "success": True,
+                "message": "User deleted successfully"
+            })
+        except Exception as e:
+            db.rollback()
+            return JSONResponse({
+                "success": False,
+                "error": str(e)
+            }, status_code=400)
+        finally:
+            db.close()
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
 
 
 @router.post("/admin/mark-reviewed/{form_id}")
