@@ -86,7 +86,7 @@ class EmailService:
             print(f"❌ Failed to send email: {str(e)}")
             return False
     
-    def send_invitation_email(self, email: str, password: str, name: str = None) -> bool:
+    def send_invitation_email(self, email: str, password: str, name: str = None, base_url: str = None) -> bool:
         """
         Send invitation email with login credentials
         
@@ -106,9 +106,19 @@ class EmailService:
             
             greeting = f"Dear {name}," if name else "Hello,"
             
-            # Get base URL from settings or use default
-            base_url = getattr(settings, 'BASE_URL', None) or f"http://{settings.HOST}:{settings.PORT}"
-            
+            # Build a robust base URL for the login link
+            # Prefer caller-provided base_url (e.g., from request.base_url)
+            base_url = (base_url)
+            print("base url >>>>>>>>>>>>>>>>>>>>>>>", base_url)
+            if not base_url:
+                # Fallback to HOST and PORT. If HOST is 0.0.0.0, present localhost for email link
+                host = getattr(settings, 'HOST', '127.0.0.1')
+                port = getattr(settings, 'PORT', 8000)
+                host_for_url = 'localhost' if host in ('0.0.0.0', '127.0.0.1') else host
+                base_url = f"http://{host_for_url}:{port}"
+            base_url = base_url.rstrip('/')
+            login_url = f"{base_url}/login"
+
             body = f"""
 {greeting}
 
@@ -118,7 +128,7 @@ Your login credentials are:
 Email: {email}
 Password: {password}
 
-Please log in at: {base_url}/login
+Please log in at: {login_url}
 
 After logging in, you can access the forms to submit LOI and CIM reviews.
 

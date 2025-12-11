@@ -730,7 +730,7 @@ function showCredentialsModal(credentials, emailSent, passwordReset, message) {
               <label class="form-label fw-bold">Email:</label>
               <div class="input-group">
                 <input type="text" class="form-control" id="cred-email" value="${credentials.email}" readonly>
-                <button class="btn btn-outline-light" onclick="copyToClipboard('${credentials.email}')">
+                <button class="btn btn-outline-light" onclick="copyToClipboard(event, '${credentials.email}')">
                   <i class="bi bi-clipboard"></i> Copy
                 </button>
               </div>
@@ -739,7 +739,7 @@ function showCredentialsModal(credentials, emailSent, passwordReset, message) {
               <label class="form-label fw-bold">Password:</label>
               <div class="input-group">
                 <input type="text" class="form-control" id="cred-password" value="${credentials.password}" readonly>
-                <button class="btn btn-outline-light" onclick="copyToClipboard('${credentials.password}')">
+                <button class="btn btn-outline-light" onclick="copyToClipboard(event, '${credentials.password}')">
                   <i class="bi bi-clipboard"></i> Copy
                 </button>
               </div>
@@ -769,24 +769,55 @@ function showCredentialsModal(credentials, emailSent, passwordReset, message) {
   modalElement.show();
 }
 
-function copyToClipboard(text) {
-  navigator.clipboard.writeText(text).then(() => {
-    // Show temporary feedback
-    const btn = event.target.closest('button');
-    const originalHTML = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
-    btn.classList.add('btn-success');
-    btn.classList.remove('btn-outline-light');
-    
+function copyToClipboard(evt, text) {
+  const showFeedback = (buttonEl) => {
+    if (!buttonEl) return;
+    const originalHTML = buttonEl.innerHTML;
+    buttonEl.innerHTML = '<i class="bi bi-check"></i> Copied!';
+    buttonEl.classList.add('btn-success');
+    buttonEl.classList.remove('btn-outline-light');
     setTimeout(() => {
-      btn.innerHTML = originalHTML;
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-outline-light');
+      buttonEl.innerHTML = originalHTML;
+      buttonEl.classList.remove('btn-success');
+      buttonEl.classList.add('btn-outline-light');
     }, 2000);
-  }).catch(err => {
-    console.error('Failed to copy:', err);
-    alert('Failed to copy to clipboard');
-  });
+  };
+
+  const button = evt && evt.target ? evt.target.closest('button') : null;
+
+  const tryNativeClipboard = () => {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return Promise.reject(new Error('Clipboard API not available or insecure context'));
+  };
+
+  const fallbackCopy = () => {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return successful ? Promise.resolve() : Promise.reject(new Error('execCommand copy failed'));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  };
+
+  tryNativeClipboard()
+    .catch(() => fallbackCopy())
+    .then(() => {
+      showFeedback(button);
+    })
+    .catch(err => {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy to clipboard');
+    });
 }
 
 async function resendUserCredentials(userId, email, name) {

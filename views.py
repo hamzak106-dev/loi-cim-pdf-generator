@@ -605,9 +605,8 @@ async def get_loi_calls_with_submissions(request: Request, calendar_id: Optional
             if is_loi_call:
                 loi_events.append(event)
         
-        # Sort by start time and take first 3
+        # Sort by start time (we will slice after filtering by available seats)
         loi_events.sort(key=lambda e: e.get('start', {}).get('dateTime', e.get('start', {}).get('date', '')))
-        loi_events = loi_events[:3]
         
         # Debug logging
         print(f"📅 Found {len(events)} total events, {len(loi_events)} LOI Call events")
@@ -676,17 +675,19 @@ async def get_loi_calls_with_submissions(request: Request, calendar_id: Optional
                 pass
             
             available_seats = max_guests - registration_count
-            
-            formatted_calls.append({
-                'id': event_id,
-                'name': summary,
-                'time': formatted_time,
-                'time_iso': start_time,
-                'submission_count': registration_count,
-                'max_guests': max_guests,
-                'available_seats': available_seats,
-                'is_full': is_full
-            })
+
+            # Only include events that have available seats (not full)
+            if available_seats > 0 and not is_full:
+                formatted_calls.append({
+                    'id': event_id,
+                    'name': summary,
+                    'time': formatted_time,
+                    'time_iso': start_time,
+                    'submission_count': registration_count,
+                    'max_guests': max_guests,
+                    'available_seats': available_seats,
+                    'is_full': is_full
+                })
         
         # If no LOI calls found, return helpful debug info
         if len(formatted_calls) == 0:
@@ -695,6 +696,10 @@ async def get_loi_calls_with_submissions(request: Request, calendar_id: Optional
             if db_loi_events:
                 print(f"   Database event IDs: {list(db_event_ids)[:5]}")
         
+        # After filtering by available seats, return the earliest 3
+        formatted_calls.sort(key=lambda c: c.get('time_iso') or '')
+        formatted_calls = formatted_calls[:3]
+
         return JSONResponse({
             "success": True,
             "calls": formatted_calls,
@@ -814,9 +819,8 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
                 ext_props = event.get('extendedProperties', {}).get('private', {})
                 print(f"    - {summary} | form_type: {ext_props.get('form_type')}")
         
-        # Sort by start time and take first 3
+        # Sort by start time (we will slice after filtering by available seats)
         cim_events.sort(key=lambda e: e.get('start', {}).get('dateTime', e.get('start', {}).get('date', '')))
-        cim_events = cim_events[:3]
         
         # Format events with submission counts
         formatted_calls = []
@@ -876,18 +880,24 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
             
             available_seats = max_guests - registration_count
             is_full = registration_count >= max_guests
-            
-            formatted_calls.append({
-                'id': event_id,
-                'name': summary,
-                'time': formatted_time,
-                'time_iso': start_time,
-                'submission_count': registration_count,
-                'max_guests': max_guests,
-                'available_seats': available_seats,
-                'is_full': is_full
-            })
+
+            # Only include events that have available seats (not full)
+            if available_seats > 0 and not is_full:
+                formatted_calls.append({
+                    'id': event_id,
+                    'name': summary,
+                    'time': formatted_time,
+                    'time_iso': start_time,
+                    'submission_count': registration_count,
+                    'max_guests': max_guests,
+                    'available_seats': available_seats,
+                    'is_full': is_full
+                })
         
+        # After filtering by available seats, return the earliest 3
+        formatted_calls.sort(key=lambda c: c.get('time_iso') or '')
+        formatted_calls = formatted_calls[:3]
+
         return JSONResponse({
             "success": True,
             "calls": formatted_calls,
@@ -1039,6 +1049,19 @@ async def handle_form_submission(request: Request, form_type: str, template_name
             'deal_likes_dislikes': (form.get('deal_likes_dislikes') or '').strip() or None,
             'deal_questions_concerns': (form.get('deal_questions_concerns') or '').strip() or None,
         }
+
+        # Ensure the submitted email matches the logged-in user's email
+        current_user = get_current_user(request)
+        if not current_user:
+            return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        session_email = (current_user.get('email') if isinstance(current_user, dict) else getattr(current_user, 'email', ''))
+        session_email = (session_email or '').strip().lower()
+        if form_data['email'] != session_email:
+            return templates.TemplateResponse(template_name, {
+                "request": request,
+                "error": "The email does not match your logged-in account.",
+                "form_data": {k: form.get(k) for k in form.keys()}
+            })
         
         # LOI-specific fields
         if form_type == "LOI":
@@ -1672,7 +1695,8 @@ async def invite_user(
             email_sent = email_service.send_invitation_email(
                 email=email,
                 password=password,
-                name=user.name
+                name=user.name,
+                base_url=str(request.base_url)
             )
         except Exception as e:
             print(f"⚠️ Failed to send invitation email: {e}")
@@ -1787,7 +1811,8 @@ async def resend_user_email(request: Request, user_id: int):
                 email_result = email_service.send_invitation_email(
                     email=user.email,
                     password=password,
-                    name=user.name
+                    name=user.name,
+                    base_url=str(request.base_url)
                 )
                 email_sent = bool(email_result)
                 print(f"📧 Resend credentials email result: {email_sent}")
@@ -1844,7 +1869,8 @@ async def reset_user_password_endpoint(request: Request, user_id: int):
                     email_result = email_service.send_invitation_email(
                         email=user.email,
                         password=new_password,
-                        name=user.name
+                        name=user.name,
+                        base_url=str(request.base_url)
                     )
                     email_sent = bool(email_result)
                     print(f"📧 Password reset email send result: {email_sent}")

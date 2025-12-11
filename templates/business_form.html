@@ -274,7 +274,7 @@ async function fetchLOICalls() {
       
       // Format: "Event Name - Date/Time (Y seats available)"
       // If full: disable the option
-      const seatsText = call.is_full ? '0 seats available' : `${call.available_seats} seat${call.available_seats !== 1 ? 's' : ''} available`;
+      const seatsText = call.is_full ? '0 seats remaining' : `${call.available_seats} seat${call.available_seats !== 1 ? 's' : ''} remaining`;
       
       option.textContent = `${call.name} - ${call.time} (${seatsText})`;
       
@@ -1054,7 +1054,8 @@ async function handleUnifiedCalendarButton(button) {
                   </div>
                   <div class="col-md-6">
                     <label for="email" class="form-label fw-semibold">Email</label>
-                    <input type="email" class="form-control form-control-lg" id="email" name="email" required value="{{ form_data.email if form_data else (user_email if user_email else '') }}">
+                    <input type="email" class="form-control form-control-lg" id="email_display" disabled value="{{ form_data.email if form_data else (user_email if user_email else '') }}">
+                    <input type="hidden" id="email" name="email" value="{{ form_data.email if form_data else (user_email if user_email else '') }}">
                   </div>
                 </div>
               </div>
@@ -1202,9 +1203,9 @@ async function handleUnifiedCalendarButton(button) {
 
               <!-- Schedule Live Call Dropdown -->
               <div class="mb-4">
-                <label for="loiCallSelect" class="form-label fw-semibold">Choose in which live call your LOI</label>
+                <!-- <label for="loiCallSelect" class="form-label fw-semibold">Choose in which live call your LOI should be reviewed</label> -->
                 <select class="form-select form-select-lg" id="loiCallSelect" name="loi_call_id" required>
-                  <option value="">Select a live call...</option>
+                  <option value="">Select the live call where your LOI will be reviewed</option></option>
                 </select>
                 <div id="loiCallsLoading" class="text-muted mt-2" style="display: none;">
                   <small>Loading available calls...</small>
