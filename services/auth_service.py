@@ -109,6 +109,45 @@ class AuthService:
             return False, None, f"Failed to create user: {str(e)}"
         finally:
             db.close()
+    
+    @staticmethod
+    def reset_user_password(user_id: int, new_password: str = None) -> Tuple[bool, Optional[str], str]:
+        """
+        Reset a user's password
+        
+        Args:
+            user_id: User ID
+            new_password: New password (if None, generates a secure password)
+            
+        Returns:
+            Tuple of (success: bool, password: str or None, message: str)
+        """
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return False, None, "User not found"
+            
+            # Generate password if not provided
+            if not new_password:
+                import secrets
+                import string
+                alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+                new_password = ''.join(secrets.choice(alphabet) for i in range(12))
+            
+            # Hash and update password
+            hashed_password = generate_password_hash(new_password)
+            user.password = hashed_password
+            db.commit()
+            
+            return True, new_password, "Password reset successfully"
+            
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Error resetting password: {e}")
+            return False, None, f"Failed to reset password: {str(e)}"
+        finally:
+            db.close()
 
 
 # Singleton instance

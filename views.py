@@ -23,6 +23,8 @@ router = APIRouter()
 
 # Session management (simple in-memory for demo - use proper session management in production)
 active_sessions = {}
+user_sessions = {}  # Separate session storage for regular users
+user_passwords = {}  # Temporary storage for user passwords (user_id -> password) - for admin viewing
 
 def get_current_admin(request: Request):
     """Get current admin from session"""
@@ -38,12 +40,91 @@ def require_admin(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     return admin
 
+def get_current_user(request: Request):
+    """Get current user from session"""
+    session_id = request.cookies.get("user_session")
+    if not session_id or session_id not in user_sessions:
+        return None
+    return user_sessions[session_id]
+
+def require_user(request: Request):
+    """Require user authentication"""
+    user = get_current_user(request)
+    if not user:
+        return None
+    return user
+
 
 # ==================== PUBLIC ROUTES ====================
 
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """User login page"""
+    # If already logged in, redirect to home
+    if get_current_user(request):
+        return RedirectResponse(url="/", status_code=HTTP_302_FOUND)
+    return templates.TemplateResponse("login.html", {
+        "request": request
+    })
+
+
+@router.post("/login")
+async def user_login(
+    request: Request,
+    email: str = FormField(...),
+    password: str = FormField(...)
+):
+    """Handle user login"""
+    success, user, message = auth_service.authenticate_user(email, password)
+    
+    if not success or not user:
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Invalid email or password"
+        })
+    
+    # Check if account is active
+    if not user.is_active:
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Your account is inactive. Please contact an administrator."
+        })
+    
+    # Create session
+    import secrets
+    session_id = secrets.token_urlsafe(32)
+    user_sessions[session_id] = {
+        'user_id': user.id,
+        'email': user.email,
+        'name': user.name,
+        'user_type': user.user_type
+    }
+    
+    # Redirect to home page
+    response = RedirectResponse(url="/", status_code=HTTP_302_FOUND)
+    response.set_cookie(key="user_session", value=session_id, httponly=True)
+    return response
+
+
+@router.get("/logout")
+async def user_logout(request: Request):
+    """Logout user"""
+    session_id = request.cookies.get("user_session")
+    if session_id in user_sessions:
+        del user_sessions[session_id]
+    
+    response = RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    response.delete_cookie("user_session")
+    return response
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
-    """Homepage"""
+    """Homepage - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
     return templates.TemplateResponse("index.html", {
         "request": request,
         "page_title": "Business Acquisition Services"
@@ -52,42 +133,78 @@ async def home_page(request: Request):
 
 @router.get("/business-form", response_class=HTMLResponse)
 async def business_form_page(request: Request):
-    """LOI Questions form page"""
+    """LOI Questions form page - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
+    # Get user email from session to pre-fill the form
+    user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
+    user_name = user.get('name', '') if isinstance(user, dict) else (user.name if hasattr(user, 'name') else '')
+    
     return templates.TemplateResponse("business_form.html", {
         "request": request,
         "page_title": "LOI Questions",
-        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
+        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary',
+        "user_email": user_email,
+        "user_name": user_name
     })
 
 
 @router.get("/cim-form", response_class=HTMLResponse)
 async def cim_form_page(request: Request):
-    """CIM Questions form page"""
+    """CIM Questions form page - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
+    # Get user email and name from session to pre-fill the form
+    user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
+    user_name = user.get('name', '') if isinstance(user, dict) else (user.name if hasattr(user, 'name') else '')
+    
     return templates.TemplateResponse("cim_questions.html", {
         "request": request,
         "page_title": "CIM Questions",
-        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
+        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary',
+        "user_email": user_email,
+        "user_name": user_name
     })
 
 
 @router.get("/cim-training-form", response_class=HTMLResponse)
 async def cim_training_form_page(request: Request):
-    """CIM Training Questions form page"""
+    """CIM Training Questions form page - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
+    # Get user email and name from session to pre-fill the form
+    user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
+    user_name = user.get('name', '') if isinstance(user, dict) else (user.name if hasattr(user, 'name') else '')
+    
     return templates.TemplateResponse("cim_training.html", {
         "request": request,
-        "page_title": "CIM Questions - Training"
+        "page_title": "CIM Questions - Training",
+        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary',
+        "user_email": user_email,
+        "user_name": user_name
     })
 
 
 @router.get("/calendar", response_class=HTMLResponse)
-async def calendar_page(request: Request, form_type: Optional[str] = None, host: Optional[str] = None, email: Optional[str] = None):
-    """Calendar page for scheduling calls"""
+async def calendar_page(request: Request, form_type: Optional[str] = None, host: Optional[str] = None, email: Optional[str] = None, event_id: Optional[str] = None):
+    """Calendar page for scheduling calls - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    
     return templates.TemplateResponse("calendar.html", {
         "request": request,
         "page_title": "Schedule a Live Call",
         "form_type": form_type or "LOI Call",
         "host": host or "Evan",
         "user_email": email or "",
+        "event_id": event_id or "",
         "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
     })
 
@@ -414,19 +531,434 @@ async def add_attendee_to_event(request: Request):
         db.close()
 
 
-@router.get("/api/calendar/events/{event_id}/registration-count")
-async def get_event_registration_count(request: Request, event_id: str):
+@router.get("/api/calendar/events/loi-calls")
+async def get_loi_calls_with_submissions(request: Request, calendar_id: Optional[str] = None):
     """
-    API endpoint to get the registration count for an event
-    Returns the number of registered users (max 10)
+    API endpoint to get the 3 upcoming LOI Call events with their submission counts
+    Returns events with name, time, and submission count for dropdown selection
     """
     db = SessionLocal()
     try:
-        registration_count = db.query(EventRegistration).filter(
-            EventRegistration.event_id == event_id
-        ).count()
+        # Use provided calendar_id or default from settings
+        cal_id = calendar_id or settings.GOOGLE_CALENDAR_ID or 'primary'
         
+        if not cal_id:
+            return JSONResponse({
+                "success": False,
+                "error": "calendar_id is required",
+                "calls": []
+            }, status_code=400)
+        
+        # Create calendar service
+        calendar_service = create_calendar_service(calendar_id=cal_id)
+        
+        # Get events from Google Calendar filtered by LOI Call
+        now = datetime.utcnow()
+        time_min = now.isoformat() + 'Z'
+        time_max = (now + timedelta(days=180)).isoformat() + 'Z'
+        
+        # Get events filtered by extended properties (form_type = "LOI Call")
+        google_service = calendar_service.service
+        events_result = google_service.events().list(
+            calendarId=cal_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            maxResults=250,  # Get more to filter
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        # Get LOI Call event IDs from database (MeetScheduler table)
+        db_loi_events = db.query(MeetScheduler).filter(
+            MeetScheduler.form_type == MeetingType.LOI_CALL,
+            MeetScheduler.is_active == True
+        ).all()
+        db_event_ids = {meeting.google_event_id for meeting in db_loi_events if meeting.google_event_id}
+        
+        # Filter for LOI Call events - check multiple criteria:
+        # 1. Extended properties form_type = "LOI Call"
+        # 2. Event summary/title contains "LOI Call"
+        # 3. Event ID matches database records
+        loi_events = []
+        for event in events:
+            event_id = event.get('id')
+            summary = event.get('summary', '').upper()
+            extended_props = event.get('extendedProperties', {}).get('private', {})
+            
+            # Check if it's an LOI Call event
+            is_loi_call = False
+            
+            # Check extended properties
+            if extended_props.get('form_type') == 'LOI Call':
+                is_loi_call = True
+            
+            # Check event title/summary
+            if 'LOI CALL' in summary or 'LOI' in summary:
+                is_loi_call = True
+            
+            # Check database records
+            if event_id in db_event_ids:
+                is_loi_call = True
+            
+            if is_loi_call:
+                loi_events.append(event)
+        
+        # Sort by start time and take first 3
+        loi_events.sort(key=lambda e: e.get('start', {}).get('dateTime', e.get('start', {}).get('date', '')))
+        loi_events = loi_events[:3]
+        
+        # Debug logging
+        print(f"📅 Found {len(events)} total events, {len(loi_events)} LOI Call events")
+        if loi_events:
+            for event in loi_events:
+                print(f"  - LOI Call: {event.get('summary')} ({event.get('id')})")
+        else:
+            print(f"  ⚠️ No LOI Call events found. Checking first few events:")
+            for event in events[:5]:
+                summary = event.get('summary', 'No title')
+                ext_props = event.get('extendedProperties', {}).get('private', {})
+                print(f"    - {summary} | form_type: {ext_props.get('form_type')}")
+        
+        # Format events with submission counts
+        formatted_calls = []
+        for event in loi_events:
+            event_id = event.get('id')
+            summary = event.get('summary', 'Untitled Event')
+            
+            # Get start time
+            start_data = event.get('start', {})
+            start_time = start_data.get('dateTime', start_data.get('date', ''))
+            
+            # Format time for display
+            formatted_time = 'Time TBD'
+            if start_time:
+                try:
+                    # Handle ISO format with timezone - Google Calendar returns ISO format
+                    if start_time.endswith('Z'):
+                        start_time_clean = start_time.replace('Z', '+00:00')
+                    else:
+                        start_time_clean = start_time
+                    
+                    # Parse ISO datetime
+                    if 'T' in start_time_clean:
+                        start_date = datetime.fromisoformat(start_time_clean)
+                        # Convert to local timezone for display (using UTC offset)
+                        formatted_time = start_date.strftime('%B %d, %Y at %I:%M %p')
+                    else:
+                        # Date only format
+                        start_date = datetime.fromisoformat(start_time_clean)
+                        formatted_time = start_date.strftime('%B %d, %Y')
+                except Exception as e:
+                    print(f"Error parsing date {start_time}: {e}")
+                    formatted_time = start_time  # Fallback to raw value
+            
+            # Count submissions/registrations for this event
+            # Get or create MeetingInstance for this event
+            instance = db.query(MeetingInstance).filter(
+                MeetingInstance.google_event_id == event_id
+            ).first()
+            
+            max_guests = 10  # Default max guests
+            registration_count = 0
+            is_full = False
+            
+            if instance:
+                registration_count = db.query(MeetingRegistration).filter(
+                    MeetingRegistration.instance_id == instance.id
+                ).count()
+                max_guests = instance.max_guests or 10
+                is_full = registration_count >= max_guests
+            else:
+                # If no instance exists yet, check if we need to create one
+                # For now, we'll create it when first registration happens
+                pass
+            
+            available_seats = max_guests - registration_count
+            
+            formatted_calls.append({
+                'id': event_id,
+                'name': summary,
+                'time': formatted_time,
+                'time_iso': start_time,
+                'submission_count': registration_count,
+                'max_guests': max_guests,
+                'available_seats': available_seats,
+                'is_full': is_full
+            })
+        
+        # If no LOI calls found, return helpful debug info
+        if len(formatted_calls) == 0:
+            print(f"⚠️ No LOI Call events found. Total events fetched: {len(events)}")
+            print(f"   Database LOI Call records: {len(db_loi_events)}")
+            if db_loi_events:
+                print(f"   Database event IDs: {list(db_event_ids)[:5]}")
+        
+        return JSONResponse({
+            "success": True,
+            "calls": formatted_calls,
+            "count": len(formatted_calls),
+            "debug": {
+                "total_events": len(events),
+                "db_loi_records": len(db_loi_events),
+                "filtered_loi_events": len(loi_events)
+            } if len(formatted_calls) == 0 else None
+        })
+    except Exception as e:
+        import traceback
+        error_msg = str(e)
+        print(f"Error fetching LOI calls: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": error_msg,
+            "calls": []
+        }, status_code=400)
+    finally:
+        db.close()
+
+
+@router.get("/api/calendar/events/cim-calls")
+async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional[str] = None, host: Optional[str] = None):
+    """
+    API endpoint to get the 3 upcoming CIM Call events with their submission counts
+    Returns events with name, time, and submission count for dropdown selection
+    Can filter by host (Ben or Mitch) if provided
+    
+    NOTE: For now, this returns the same events as LOI calls (showing same calendar events for all three forms)
+    """
+    db = SessionLocal()
+    try:
+        # Use provided calendar_id or default from settings
+        cal_id = calendar_id or settings.GOOGLE_CALENDAR_ID or 'primary'
+        
+        if not cal_id:
+            return JSONResponse({
+                "success": False,
+                "error": "calendar_id is required",
+                "calls": []
+            }, status_code=400)
+        
+        # Create calendar service
+        calendar_service = create_calendar_service(calendar_id=cal_id)
+        
+        # Get events from Google Calendar filtered by CIM Call
+        now = datetime.utcnow()
+        time_min = now.isoformat() + 'Z'
+        time_max = (now + timedelta(days=180)).isoformat() + 'Z'
+        
+        # Get events filtered by extended properties (form_type = "CIM Call")
+        google_service = calendar_service.service
+        events_result = google_service.events().list(
+            calendarId=cal_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            maxResults=250,  # Get more to filter
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        
+        # Get LOI Call event IDs from database (MeetScheduler table)
+        # NOTE: Using LOI calls since we're showing the same calendar events for all three forms
+        db_loi_events = db.query(MeetScheduler).filter(
+            MeetScheduler.form_type == MeetingType.LOI_CALL,
+            MeetScheduler.is_active == True
+        ).all()
+        db_event_ids = {meeting.google_event_id for meeting in db_loi_events if meeting.google_event_id}
+        
+        # Filter for events - use same logic as LOI calls
+        # For now, show same calendar events for all three forms (LOI, CIM, CIM Training)
+        cim_events = []
+        for event in events:
+            event_id = event.get('id')
+            summary = event.get('summary', '').upper()
+            extended_props = event.get('extendedProperties', {}).get('private', {})
+            
+            # Check if it's an LOI Call event (since we're using same events for all forms)
+            is_cim_call = False
+            
+            # Check extended properties
+            if extended_props.get('form_type') == 'LOI Call':
+                is_cim_call = True
+            
+            # Check event title/summary - match LOI calls
+            if 'LOI CALL' in summary or 'LOI' in summary:
+                is_cim_call = True
+            
+            # Check database records
+            if event_id in db_event_ids:
+                is_cim_call = True
+            
+            # If host filter is provided, check if event matches host
+            if is_cim_call and host:
+                event_host = extended_props.get('host', '')
+                event_summary_lower = event.get('summary', '').lower()
+                # Check if host matches (case-insensitive)
+                if host.lower() not in event_host.lower() and host.lower() not in event_summary_lower:
+                    is_cim_call = False
+            
+            if is_cim_call:
+                cim_events.append(event)
+        
+        # Debug logging (similar to LOI calls)
+        print(f"📅 Found {len(events)} total events, {len(cim_events)} CIM Call events")
+        if cim_events:
+            for event in cim_events:
+                print(f"  - CIM Call: {event.get('summary')} ({event.get('id')})")
+        else:
+            print(f"  ⚠️ No CIM Call events found. Checking first few events:")
+            for event in events[:5]:
+                summary = event.get('summary', 'No title')
+                ext_props = event.get('extendedProperties', {}).get('private', {})
+                print(f"    - {summary} | form_type: {ext_props.get('form_type')}")
+        
+        # Sort by start time and take first 3
+        cim_events.sort(key=lambda e: e.get('start', {}).get('dateTime', e.get('start', {}).get('date', '')))
+        cim_events = cim_events[:3]
+        
+        # Format events with submission counts
+        formatted_calls = []
+        for event in cim_events:
+            event_id = event.get('id')
+            summary = event.get('summary', 'Untitled Event')
+            
+            # Get start time
+            start_data = event.get('start', {})
+            start_time = start_data.get('dateTime', start_data.get('date', ''))
+            
+            # Format time for display
+            formatted_time = 'Time TBD'
+            if start_time:
+                try:
+                    # Handle ISO format with timezone - Google Calendar returns ISO format
+                    if start_time.endswith('Z'):
+                        start_time_clean = start_time.replace('Z', '+00:00')
+                    else:
+                        start_time_clean = start_time
+                    
+                    # Parse ISO datetime
+                    if 'T' in start_time_clean:
+                        start_date = datetime.fromisoformat(start_time_clean)
+                        # Convert to local timezone for display (using UTC offset)
+                        formatted_time = start_date.strftime('%B %d, %Y at %I:%M %p')
+                    else:
+                        # Date only format
+                        start_date = datetime.fromisoformat(start_time_clean)
+                        formatted_time = start_date.strftime('%B %d, %Y')
+                except Exception as e:
+                    print(f"Error parsing date {start_time}: {e}")
+                    formatted_time = start_time  # Fallback to raw value
+            
+            # Count submissions/registrations for this event
+            # Get or create MeetingInstance for this event
+            instance = db.query(MeetingInstance).filter(
+                MeetingInstance.google_event_id == event_id
+            ).first()
+            
+            max_guests = 10  # Default max guests
+            registration_count = 0
+            is_full = False
+            
+            if instance:
+                registration_count = db.query(MeetingRegistration).filter(
+                    MeetingRegistration.instance_id == instance.id
+                ).count()
+                max_guests = instance.max_guests
+            else:
+                # Try to get from MeetScheduler
+                scheduler = db.query(MeetScheduler).filter(
+                    MeetScheduler.google_event_id == event_id
+                ).first()
+                if scheduler:
+                    max_guests = scheduler.max_guests or 10
+            
+            available_seats = max_guests - registration_count
+            is_full = registration_count >= max_guests
+            
+            formatted_calls.append({
+                'id': event_id,
+                'name': summary,
+                'time': formatted_time,
+                'time_iso': start_time,
+                'submission_count': registration_count,
+                'max_guests': max_guests,
+                'available_seats': available_seats,
+                'is_full': is_full
+            })
+        
+        return JSONResponse({
+            "success": True,
+            "calls": formatted_calls,
+            "count": len(formatted_calls)
+        })
+    except Exception as e:
+        print(f"Error fetching CIM calls: {traceback.format_exc()}")
+        import traceback
+        return JSONResponse({
+            "success": False,
+            "error": str(e),
+            "calls": [],
+            "debug_info": {
+                "message": "Failed to fetch CIM calls. Check server logs for details.",
+                "exception": str(e),
+                "traceback": traceback.format_exc()
+            }
+        }, status_code=400)
+    finally:
+        db.close()
+
+
+@router.get("/api/calendar/events/{event_id}/registration-count")
+async def get_event_registration_count(request: Request, event_id: str, email: Optional[str] = None):
+    """
+    API endpoint to get the registration count for an event
+    Returns the number of registered users (max 10) and whether the provided email is already registered
+    For LOI calls, checks MeetingRegistration table
+    """
+    db = SessionLocal()
+    try:
+        # Check if this is an LOI call by looking for MeetingInstance
+        instance = db.query(MeetingInstance).filter(
+            MeetingInstance.google_event_id == event_id
+        ).first()
+        
+        is_registered = False
+        registration_count = 0
         MAX_REGISTRATIONS = 10
+        
+        if instance:
+            # This is an LOI call - use MeetingRegistration
+            registration_count = db.query(MeetingRegistration).filter(
+                MeetingRegistration.instance_id == instance.id
+            ).count()
+            
+            # Check if the provided email is already registered
+            if email:
+                normalized_email = email.lower().strip()
+                existing_registration = db.query(MeetingRegistration).filter(
+                    MeetingRegistration.instance_id == instance.id,
+                    MeetingRegistration.email == normalized_email
+                ).first()
+                is_registered = existing_registration is not None
+            
+            MAX_REGISTRATIONS = instance.max_guests or 10
+        else:
+            # Regular event - use EventRegistration
+            registration_count = db.query(EventRegistration).filter(
+                EventRegistration.event_id == event_id
+            ).count()
+            
+            # Check if the provided email is already registered
+            if email:
+                normalized_email = email.lower().strip()
+                existing_registration = db.query(EventRegistration).filter(
+                    EventRegistration.event_id == event_id,
+                    EventRegistration.email == normalized_email
+                ).first()
+                is_registered = existing_registration is not None
+        
         is_full = registration_count >= MAX_REGISTRATIONS
         
         return JSONResponse({
@@ -434,7 +966,8 @@ async def get_event_registration_count(request: Request, event_id: str):
             "registration_count": registration_count,
             "max_registrations": MAX_REGISTRATIONS,
             "is_full": is_full,
-            "slots_available": MAX_REGISTRATIONS - registration_count
+            "slots_available": MAX_REGISTRATIONS - registration_count,
+            "is_registered": is_registered
         })
     except Exception as e:
         import traceback
@@ -509,18 +1042,35 @@ async def handle_form_submission(request: Request, form_type: str, template_name
         
         # LOI-specific fields
         if form_type == "LOI":
+            loi_call_id = (form.get('loi_call_id') or '').strip()
+            if not loi_call_id:
+                return templates.TemplateResponse(template_name, {
+                    "request": request,
+                    "error": "Please select a live call for your LOI.",
+                    "form_data": {k: form.get(k) for k in form.keys()}
+                })
             form_data.update({
                 'customer_concentration_risk': (form.get('customer_concentration_risk') or '').strip() or None,
                 'deal_competitiveness': (form.get('deal_competitiveness') or '').strip() or None,
                 'seller_note_openness': (form.get('seller_note_openness') or '').strip() or None,
+                'loi_call_id': loi_call_id,  # Store selected call event ID
             })
         
         # CIM-specific fields (applies to both CIM and CIM_TRAINING)
         if form_type == "CIM" or form_type == "CIM_TRAINING":
+            cim_call_id = (form.get('cim_call_id') or '').strip()
+            # if not cim_call_id:
+            #     return templates.TemplateResponse(template_name, {
+            #         "request": request,
+            #         "error": "Please select a live call for your CIM.",
+            #         "form_data": {k: form.get(k) for k in form.keys()}
+            #     })
+            
             form_data.update({
                 'gm_in_place': (form.get('gm_in_place') or '').strip() or None,
                 'tenure_of_gm': (form.get('tenure_of_gm') or '').strip() or None,
                 'number_of_employees': (form.get('number_of_employees') or '').strip() or None,
+                'cim_call_id': cim_call_id,  # Store selected call event ID
             })
         
         # Convert numeric fields
@@ -555,6 +1105,306 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                 "form_data": {k: form.get(k) for k in form.keys()}
             })
         
+        # For LOI forms, create MeetingRegistration record and redirect to calendar
+        if form_type == "LOI":
+            loi_call_id = form_data.get('loi_call_id')
+            if loi_call_id:
+                db = SessionLocal()
+                try:
+                    calendar_service = create_calendar_service()
+                    
+                    # Get event from Google Calendar
+                    event = calendar_service.get_event(loi_call_id)
+                    if event:
+                        # Parse event time
+                        start_time_str = event.get('start', {}).get('dateTime') or event.get('start', {}).get('date')
+                        if start_time_str:
+                            ny_tz = pytz.timezone("America/New_York")
+                            start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                            if start_time.tzinfo is None:
+                                start_time = ny_tz.localize(start_time)
+                            else:
+                                start_time = start_time.astimezone(ny_tz)
+                            
+                            # Get or create MeetingInstance
+                            instance = db.query(MeetingInstance).filter(
+                                MeetingInstance.google_event_id == loi_call_id,
+                                MeetingInstance.instance_time == start_time
+                            ).first()
+                            
+                            max_guests = 10
+                            if not instance:
+                                instance = MeetingInstance(
+                                    google_event_id=loi_call_id,
+                                    scheduler_id=None,
+                                    instance_time=start_time,
+                                    guest_count=0,
+                                    max_guests=max_guests
+                                )
+                                db.add(instance)
+                                db.flush()
+                            else:
+                                max_guests = instance.max_guests or 10
+                            
+                            # Check if already registered
+                            normalized_email = form_data.get('email', '').lower().strip()
+                            existing_registration = db.query(MeetingRegistration).filter(
+                                MeetingRegistration.instance_id == instance.id,
+                                MeetingRegistration.email == normalized_email
+                            ).first()
+                            
+                            if existing_registration:
+                                db.close()
+                                return templates.TemplateResponse(template_name, {
+                                    "request": request,
+                                    "error": f"❌ You are already registered for this LOI call. You cannot submit the form multiple times for the same event.",
+                                    "form_data": form_data
+                                })
+                            
+                            # Check if full
+                            current_registrations = db.query(MeetingRegistration).filter(
+                                MeetingRegistration.instance_id == instance.id
+                            ).count()
+                            
+                            if current_registrations >= max_guests:
+                                db.close()
+                                return templates.TemplateResponse(template_name, {
+                                    "request": request,
+                                    "error": f"❌ This LOI call is full. Maximum {max_guests} registrations reached.",
+                                    "form_data": form_data
+                                })
+                            
+                            # Create registration
+                            registration = MeetingRegistration(
+                                instance_id=instance.id,
+                                full_name=form_data.get('full_name', ''),
+                                email=normalized_email
+                            )
+                            db.add(registration)
+                            instance.guest_count = current_registrations + 1
+                            db.commit()
+                            print(f"✅ Created MeetingRegistration for form submission: {normalized_email} for event {loi_call_id}")
+                            
+                            # Get event details for Google Calendar URL
+                            event_title = event.get('summary', 'LOI Call')
+                            # Get start/end as strings (the function expects string format)
+                            start_data = event.get('start', {})
+                            end_data = event.get('end', {})
+                            
+                            if isinstance(start_data, dict):
+                                event_start = start_data.get('dateTime') or start_data.get('date') or ""
+                            else:
+                                event_start = str(start_data) if start_data else ""
+                            
+                            if isinstance(end_data, dict):
+                                event_end = end_data.get('dateTime') or end_data.get('date') or ""
+                            else:
+                                event_end = str(end_data) if end_data else ""
+                            
+                            event_description = event.get('description', '') or ''
+                            event_location = event.get('location', '') or ''
+                            event_hangout = event.get('hangoutLink', '') or ''
+                            
+                            # Validate we have start time
+                            if not event_start:
+                                print(f"⚠️ Warning: Event {loi_call_id} has no start time")
+                                db.close()
+                                return templates.TemplateResponse(template_name, {
+                                    "request": request,
+                                    "success": f"✅ {form_type} form submitted successfully!",
+                                    "error": "Could not open Google Calendar - event time missing.",
+                                    "form_data": {}
+                                })
+                            
+                            db.close()
+                            
+                            # Return success with event data to open Google Calendar
+                            # The frontend will handle opening Google Calendar
+                            import json
+                            # Get timezone from event (default to America/New_York for LOI calls)
+                            event_timezone = start_data.get('timeZone') or end_data.get('timeZone') or 'America/New_York'
+                            
+                            event_data_dict = {
+                                "id": loi_call_id,
+                                "summary": event_title,
+                                "start": event_start,
+                                "end": event_end,
+                                "timeZone": event_timezone,
+                                "description": event_description,
+                                "location": event_location,
+                                "hangoutLink": event_hangout
+                            }
+                            
+                            print(f"📅 Returning event data for Google Calendar: {json.dumps(event_data_dict, indent=2)}")
+                            
+                            return templates.TemplateResponse(template_name, {
+                                "request": request,
+                                "success": f"✅ {form_type} form submitted successfully! Opening Google Calendar...",
+                                "form_data": {},
+                                "open_calendar": True,
+                                "event_data": event_data_dict
+                            })
+                        else:
+                            db.close()
+                    else:
+                        db.close()
+                except Exception as e:
+                    print(f"Error creating MeetingRegistration: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    if 'db' in locals():
+                        db.close()
+        
+        # For CIM forms, create MeetingRegistration record and open Google Calendar
+        if form_type == "CIM" or form_type == "CIM_TRAINING":
+            cim_call_id = form_data.get('cim_call_id')
+            if cim_call_id:
+                db = SessionLocal()
+                try:
+                    calendar_service = create_calendar_service()
+                    
+                    # Get event from Google Calendar
+                    event = calendar_service.get_event(cim_call_id)
+                    if event:
+                        # Parse event time
+                        start_time_str = event.get('start', {}).get('dateTime') or event.get('start', {}).get('date')
+                        if start_time_str:
+                            ny_tz = pytz.timezone("America/New_York")
+                            start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                            if start_time.tzinfo is None:
+                                start_time = ny_tz.localize(start_time)
+                            else:
+                                start_time = start_time.astimezone(ny_tz)
+                            
+                            # Get or create MeetingInstance
+                            instance = db.query(MeetingInstance).filter(
+                                MeetingInstance.google_event_id == cim_call_id,
+                                MeetingInstance.instance_time == start_time
+                            ).first()
+                            
+                            max_guests = 10
+                            if not instance:
+                                instance = MeetingInstance(
+                                    google_event_id=cim_call_id,
+                                    scheduler_id=None,
+                                    instance_time=start_time,
+                                    guest_count=0,
+                                    max_guests=max_guests
+                                )
+                                db.add(instance)
+                                db.flush()
+                            else:
+                                max_guests = instance.max_guests or 10
+                            
+                            # Check if already registered
+                            normalized_email = form_data.get('email', '').lower().strip()
+                            existing_registration = db.query(MeetingRegistration).filter(
+                                MeetingRegistration.instance_id == instance.id,
+                                MeetingRegistration.email == normalized_email
+                            ).first()
+                            
+                            if existing_registration:
+                                db.close()
+                                return templates.TemplateResponse(template_name, {
+                                    "request": request,
+                                    "error": f"❌ You are already registered for this CIM call. You cannot submit the form multiple times for the same event.",
+                                    "form_data": form_data
+                                })
+                            
+                            # Check if full
+                            current_registrations = db.query(MeetingRegistration).filter(
+                                MeetingRegistration.instance_id == instance.id
+                            ).count()
+                            
+                            if current_registrations >= max_guests:
+                                db.close()
+                                return templates.TemplateResponse(template_name, {
+                                    "request": request,
+                                    "error": f"❌ This CIM call is full. Maximum {max_guests} registrations reached.",
+                                    "form_data": form_data
+                                })
+                            
+                            # Create registration
+                            registration = MeetingRegistration(
+                                instance_id=instance.id,
+                                full_name=form_data.get('full_name', ''),
+                                email=normalized_email
+                            )
+                            db.add(registration)
+                            instance.guest_count = current_registrations + 1
+                            db.commit()
+                            print(f"✅ Created MeetingRegistration for form submission: {normalized_email} for event {cim_call_id}")
+                            
+                            # Get event details for Google Calendar URL
+                            event_title = event.get('summary', 'CIM Call')
+                            # Get start/end as strings (the function expects string format)
+                            start_data = event.get('start', {})
+                            end_data = event.get('end', {})
+                            
+                            if isinstance(start_data, dict):
+                                event_start = start_data.get('dateTime') or start_data.get('date') or ""
+                            else:
+                                event_start = str(start_data) if start_data else ""
+                            
+                            if isinstance(end_data, dict):
+                                event_end = end_data.get('dateTime') or end_data.get('date') or ""
+                            else:
+                                event_end = str(end_data) if end_data else ""
+                            
+                            event_description = event.get('description', '') or ''
+                            event_location = event.get('location', '') or ''
+                            event_hangout = event.get('hangoutLink', '') or ''
+                            
+                            # Validate we have start time
+                            if not event_start:
+                                print(f"⚠️ Warning: Event {cim_call_id} has no start time")
+                                db.close()
+                                return templates.TemplateResponse(template_name, {
+                                    "request": request,
+                                    "success": f"✅ {form_type} form submitted successfully!",
+                                    "error": "Could not open Google Calendar - event time missing.",
+                                    "form_data": {}
+                                })
+                            
+                            db.close()
+                            
+                            # Return success with event data to open Google Calendar
+                            # The frontend will handle opening Google Calendar
+                            import json
+                            # Get timezone from event (default to America/New_York for CIM calls)
+                            event_timezone = start_data.get('timeZone') or end_data.get('timeZone') or 'America/New_York'
+                            
+                            event_data_dict = {
+                                "id": cim_call_id,
+                                "summary": event_title,
+                                "start": event_start,
+                                "end": event_end,
+                                "timeZone": event_timezone,
+                                "description": event_description,
+                                "location": event_location,
+                                "hangoutLink": event_hangout
+                            }
+                            
+                            print(f"📅 Returning event data for Google Calendar: {json.dumps(event_data_dict, indent=2)}")
+                            
+                            return templates.TemplateResponse(template_name, {
+                                "request": request,
+                                "success": f"✅ {form_type} form submitted successfully! Opening Google Calendar...",
+                                "form_data": {},
+                                "open_calendar": True,
+                                "event_data": event_data_dict
+                            })
+                        else:
+                            db.close()
+                    else:
+                        db.close()
+                except Exception as e:
+                    print(f"Error creating MeetingRegistration: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    if 'db' in locals():
+                        db.close()
+        
         # Handle file uploads - encode as base64 for cross-dyno transfer
         files_data = []
         files = form.getlist('files') if hasattr(form, 'getlist') else ([form.get('files')] if form.get('files') else [])
@@ -579,7 +1429,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
         # Trigger background processing
         process_submission_complete.delay(submission.id, files_data, form_type)
         
-        # Return success message on same page with cleared form
+        # Return success message on same page with cleared form (for non-LOI forms)
         return templates.TemplateResponse(template_name, {
             "request": request,
             "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly.",
@@ -598,19 +1448,28 @@ async def handle_form_submission(request: Request, form_type: str, template_name
 
 @router.post("/submit-business")
 async def submit_loi_form(request: Request):
-    """Submit LOI Questions form"""
+    """Submit LOI Questions form - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "LOI", "business_form.html")
 
 
 @router.post("/submit-cim")
 async def submit_cim_form(request: Request):
-    """Submit CIM Questions form"""
+    """Submit CIM Questions form - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "CIM", "cim_questions.html")
 
 
 @router.post("/submit-cim-training")
 async def submit_cim_training_form(request: Request):
-    """Submit CIM Training Questions form"""
+    """Submit CIM Training Questions form - requires authentication"""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "CIM_TRAINING", "cim_training.html")
 
 
@@ -738,6 +1597,16 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
         reviewed_count = len(reviewed_form_ids)
         user_count = db.query(User).count()
         
+        # Get users with pagination (excluding admins)
+        page = int(request.query_params.get("user_page", 1))
+        per_page = 5
+        offset = (page - 1) * per_page
+        
+        users_query = db.query(User).filter(User.user_type == 'user').order_by(User.created_at.desc())
+        total_users = users_query.count()
+        all_users = users_query.offset(offset).limit(per_page).all()
+        total_pages = (total_users + per_page - 1) // per_page
+        
         return templates.TemplateResponse("accounts/dashboard.html", {
             "request": request,
             "admin_name": admin['name'],
@@ -749,11 +1618,309 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
             "total_count": loi_count + cim_count + cim_training_count,
             "reviewed_count": reviewed_count,
             "user_count": user_count,
+            "users": all_users,
+            "user_page": page,
+            "user_total_pages": total_pages,
+            "user_total": total_users,
             "current_filter": filter_type,
             "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
         })
     finally:
         db.close()
+
+
+@router.post("/admin/invite-user")
+async def invite_user(
+    request: Request,
+    email: str = FormField(...),
+    name: Optional[str] = FormField(None)
+):
+    """Invite a new user - generates password and sends credentials via email"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        import secrets
+        import string
+        
+        # Generate secure password (12 characters: letters, digits, and special chars)
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = ''.join(secrets.choice(alphabet) for i in range(12))
+        
+        # Create user account
+        success, user, message = auth_service.create_user(
+            name=name or email.split('@')[0],  # Use email prefix if name not provided
+            email=email,
+            password=password,
+            user_type='user'
+        )
+        
+        if not success:
+            return JSONResponse({
+                "success": False,
+                "error": message
+            }, status_code=400)
+        
+        # Store password temporarily for admin viewing
+        user_passwords[user.id] = password
+        
+        # Send invitation email
+        email_sent = False
+        try:
+            from services import email_service
+            email_sent = email_service.send_invitation_email(
+                email=email,
+                password=password,
+                name=user.name
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to send invitation email: {e}")
+            # Continue even if email fails - admin can still see credentials
+        
+        return JSONResponse({
+            "success": True,
+            "message": "User created successfully",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "name": user.name
+            },
+            "credentials": {
+                "email": email,
+                "password": password
+            },
+            "email_sent": email_sent
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ Error inviting user: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.get("/admin/user/{user_id}/credentials")
+async def get_user_credentials(request: Request, user_id: int):
+    """Get user credentials (password if available)"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Check if password is stored (for recently created users)
+            password = user_passwords.get(user_id)
+            
+            if password:
+                # Password is stored, assume email was sent when user was created
+                return JSONResponse({
+                    "success": True,
+                    "credentials": {
+                        "email": user.email,
+                        "password": password
+                    },
+                    "email_sent": True  # Assume email was sent when user was created
+                })
+            else:
+                # Password not available - admin can delete and re-invite user
+                return JSONResponse({
+                    "success": False,
+                    "error": "Password not available. Password was not stored or user was created before this feature was added.",
+                    "message": "To provide new credentials, delete this user and create a new invitation."
+                })
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        print(f"❌ Error getting credentials: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.post("/admin/user/{user_id}/resend-email")
+async def resend_user_email(request: Request, user_id: int):
+    """Resend credentials email to user - resets password if not stored"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Check if password is stored
+            stored_password = user_passwords.get(user_id)
+            password_was_reset = False
+            
+            # If password not stored, reset it
+            if not stored_password:
+                success, new_password, message = auth_service.reset_user_password(user_id)
+                if success and new_password:
+                    password = new_password
+                    user_passwords[user_id] = password
+                    password_was_reset = True
+                else:
+                    return JSONResponse({
+                        "success": False,
+                        "error": message or "Failed to reset password"
+                    })
+            else:
+                password = stored_password
+            
+            # Send email with credentials
+            email_sent = False
+            try:
+                from services import email_service
+                email_result = email_service.send_invitation_email(
+                    email=user.email,
+                    password=password,
+                    name=user.name
+                )
+                email_sent = bool(email_result)
+                print(f"📧 Resend credentials email result: {email_sent}")
+            except Exception as e:
+                print(f"⚠️ Failed to resend credentials email: {e}")
+                email_sent = False
+            
+            return JSONResponse({
+                "success": True,
+                "credentials": {
+                    "email": user.email,
+                    "password": password
+                },
+                "email_sent": email_sent,
+                "password_reset": password_was_reset,
+                "message": "Credentials have been sent to the user's email." if email_sent else "Email could not be sent, but credentials are shown below."
+            })
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        print(f"❌ Error resending email: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.post("/admin/user/{user_id}/reset-password")
+async def reset_user_password_endpoint(request: Request, user_id: int):
+    """Reset user password and return new credentials"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Reset password
+            success, new_password, message = auth_service.reset_user_password(user_id)
+            
+            if success and new_password:
+                # Store the new password
+                user_passwords[user_id] = new_password
+                
+                # Send email with new password
+                email_sent = False
+                try:
+                    from services import email_service
+                    email_result = email_service.send_invitation_email(
+                        email=user.email,
+                        password=new_password,
+                        name=user.name
+                    )
+                    email_sent = bool(email_result)
+                    print(f"📧 Password reset email send result: {email_sent}")
+                except Exception as e:
+                    print(f"⚠️ Failed to send password reset email: {e}")
+                    email_sent = False
+                
+                return JSONResponse({
+                    "success": True,
+                    "credentials": {
+                        "email": user.email,
+                        "password": new_password
+                    },
+                    "password_reset": True,
+                    "email_sent": email_sent,
+                    "message": "Password has been reset. New credentials are shown below."
+                })
+            else:
+                return JSONResponse({
+                    "success": False,
+                    "error": message or "Failed to reset password"
+                })
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        print(f"❌ Error resetting password: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+
+
+@router.delete("/admin/user/{user_id}")
+async def delete_user(request: Request, user_id: int):
+    """Delete a user"""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    try:
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if not user:
+                return JSONResponse({"success": False, "error": "User not found"}, status_code=404)
+            
+            # Prevent deleting admin users
+            if user.is_admin():
+                return JSONResponse({"success": False, "error": "Cannot delete admin users"}, status_code=400)
+            
+            # Delete user
+            db.delete(user)
+            db.commit()
+            
+            # Remove password from temporary storage if exists
+            if user_id in user_passwords:
+                del user_passwords[user_id]
+            
+            return JSONResponse({
+                "success": True,
+                "message": "User deleted successfully"
+            })
+        except Exception as e:
+            db.rollback()
+            return JSONResponse({
+                "success": False,
+                "error": str(e)
+            }, status_code=400)
+        finally:
+            db.close()
+    except Exception as e:
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
 
 
 @router.post("/admin/mark-reviewed/{form_id}")

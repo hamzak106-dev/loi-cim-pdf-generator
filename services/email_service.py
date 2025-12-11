@@ -85,6 +85,63 @@ class EmailService:
         except Exception as e:
             print(f"❌ Failed to send email: {str(e)}")
             return False
+    
+    def send_invitation_email(self, email: str, password: str, name: str = None) -> bool:
+        """
+        Send invitation email with login credentials
+        
+        Args:
+            email: User's email address
+            password: Generated password for the user
+            name: User's name (optional)
+            
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        try:
+            msg = MIMEMultipart()
+            msg['From'] = self.from_email
+            msg['To'] = email
+            msg['Subject'] = "Your Business Acquisition Services Account"
+            
+            greeting = f"Dear {name}," if name else "Hello,"
+            
+            # Get base URL from settings or use default
+            base_url = getattr(settings, 'BASE_URL', None) or f"http://{settings.HOST}:{settings.PORT}"
+            
+            body = f"""
+{greeting}
+
+You have been invited to access the Business Acquisition Services platform.
+
+Your login credentials are:
+Email: {email}
+Password: {password}
+
+Please log in at: {base_url}/login
+
+After logging in, you can access the forms to submit LOI and CIM reviews.
+
+Best regards,
+Business Acquisition Services Team
+            """
+            
+            msg.attach(MIMEText(body, 'plain'))
+            
+            # Send email
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            server.starttls()
+            server.login(self.username, self.password)
+            text = msg.as_string()
+            server.sendmail(self.from_email, email, text)
+            server.quit()
+            
+            print(f"✅ Invitation email sent successfully to {email}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to send invitation email: {str(e)}")
+            return False
 
 
 # Singleton instance
