@@ -272,12 +272,11 @@ async function fetchLOICalls() {
       const option = document.createElement('option');
       option.value = call.id;
       
-      // Format: "Event Name - Date/Time (X submissions, Y seats available)"
+      // Format: "Event Name - Date/Time (Y seats available)"
       // If full: disable the option
-      const submissionText = call.submission_count === 0 ? '0 submissions' : `${call.submission_count} submission${call.submission_count !== 1 ? 's' : ''}`;
       const seatsText = call.is_full ? '0 seats available' : `${call.available_seats} seat${call.available_seats !== 1 ? 's' : ''} available`;
       
-      option.textContent = `${call.name} - ${call.time} (${submissionText}, ${seatsText})`;
+      option.textContent = `${call.name} - ${call.time} (${seatsText})`;
       
       // Disable if full (10 registrations)
       if (call.is_full) {
@@ -470,6 +469,7 @@ function addToGoogleCalendar(eventData) {
     }
     
     console.log('Parsed times - start:', startTime, 'end:', endTime);
+    console.log('Event timezone:', eventData.timeZone);
     
     if (!startTime) {
       console.error('Event start time is missing');
@@ -477,28 +477,42 @@ function addToGoogleCalendar(eventData) {
       return;
     }
     
+    // Get event timezone (default to America/New_York for LOI calls)
+    // For LOI calls, always use Eastern Time
+    let eventTimezone = eventData.timeZone || 'America/New_York';
+    
+    // Force Eastern Time for LOI calls
+    const isLOICall = eventData.summary && (eventData.summary.toUpperCase().includes('LOI') || eventData.summary.toUpperCase().includes('LOI CALL'));
+    if (isLOICall) {
+      eventTimezone = 'America/New_York';
+    }
+    
+    console.log('Google Calendar timezone:', eventTimezone, 'for event:', eventData.summary);
+    
     // Convert dates to Google Calendar format
+    // Google Calendar URL format: dates should be in LOCAL time (not UTC) with ctz parameter for timezone
+    // Format: YYYYMMDDTHHMMSS (local time in the event's timezone)
     const formatDateForGoogleCalendar = (dateString, isAllDay = false) => {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        throw new Error('Invalid date format');
-      }
-      
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(date.getUTCDate()).padStart(2, '0');
-      
-      // Check if this is an all-day event
       if (isAllDay || (!dateString.includes('T') && !dateString.includes(' '))) {
+        // All-day event: just use the date part
+        const date = new Date(dateString);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
         return `${year}${month}${day}`;
       }
       
-      // Timed event: include time
-      const hours = String(date.getUTCHours()).padStart(2, '0');
-      const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-      const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+      // Parse the date string to extract components
+      const match = dateString.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+      if (!match) {
+        throw new Error('Invalid date format: ' + dateString);
+      }
+      const [, year, month, day, hour, minute, second] = match;
       
-      return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+      // For Google Calendar URL, we use the LOCAL time in the event's timezone
+      // NOT UTC. The ctz parameter will tell Google Calendar what timezone this is.
+      // So if the event is 9:00 AM Eastern Time, we use 09:00:00, not the UTC equivalent
+      return `${year}${month}${day}T${hour}${minute}${second}`;
     };
     
     // Check if event is all-day
@@ -521,6 +535,7 @@ function addToGoogleCalendar(eventData) {
     const location = eventData.location || '';
     
     // Build Google Calendar URL
+    // According to Google Calendar docs, use local time in dates parameter and ctz for timezone
     const baseUrl = 'https://www.google.com/calendar/render';
     const params = new URLSearchParams({
       action: 'TEMPLATE',
@@ -531,10 +546,21 @@ function addToGoogleCalendar(eventData) {
       output: 'xml'
     });
     
+    // Add timezone parameter (ctz) - this tells Google Calendar what timezone the dates are in
+    // Convert timezone name to URL format (America/New_York -> America/New_York)
+    params.append('ctz', eventTimezone);
+    
     // Add location if available
     if (location) {
       params.append('location', location);
     }
+    
+    console.log('Google Calendar URL params:', {
+      dates: `${startFormatted}/${endFormatted}`,
+      ctz: eventTimezone,
+      startTime: startTime,
+      endTime: endTime
+    });
     
     const calendarUrl = `${baseUrl}?${params.toString()}`;
     
@@ -556,6 +582,116 @@ function addToGoogleCalendar(eventData) {
 }
 
 // Show event details modal (simplified version from calendar.html)
+// Get timezone full name (e.g., "Eastern Time" instead of "America/New_York")
+function getTimezoneFullName(timezoneName, date) {
+  // First, try to map timezone names directly to full names
+  const timezoneMap = {
+    'Asia/Karachi': 'Pakistan Standard Time',
+    'Asia/Kolkata': 'India Standard Time',
+    'Asia/Dubai': 'Gulf Standard Time',
+    'Asia/Singapore': 'Singapore Standard Time',
+    'Asia/Tokyo': 'Japan Standard Time',
+    'Asia/Shanghai': 'China Standard Time',
+    'Asia/Hong_Kong': 'Hong Kong Time',
+    'Asia/Dhaka': 'Bangladesh Standard Time',
+    'America/New_York': 'Eastern Time',
+    'America/Chicago': 'Central Time',
+    'America/Denver': 'Mountain Time',
+    'America/Los_Angeles': 'Pacific Time',
+    'America/Toronto': 'Eastern Time',
+    'Europe/London': 'Greenwich Mean Time',
+    'Europe/Paris': 'Central European Time',
+    'Europe/Moscow': 'Moscow Standard Time',
+    'Europe/Berlin': 'Central European Time',
+    'Australia/Sydney': 'Australian Eastern Standard Time',
+    'Australia/Melbourne': 'Australian Eastern Standard Time',
+  };
+  
+  if (timezoneName && timezoneMap[timezoneName]) {
+    return timezoneMap[timezoneName];
+  }
+  
+  // If timezone name not found, try to get full name from Intl API
+  if (timezoneName && date) {
+    try {
+      // Try to get long timezone name
+      const formatter = new Intl.DateTimeFormat('en-US', { 
+        timeZone: timezoneName,
+        timeZoneName: 'long' 
+      });
+      const parts = formatter.formatToParts(date);
+      const tzPart = parts.find(part => part.type === 'timeZoneName');
+      if (tzPart) {
+        let tzName = tzPart.value;
+        // If it's GMT+5 format, convert to full name
+        if (tzName.startsWith('GMT')) {
+          // Extract offset (e.g., GMT+5, GMT+05, GMT+5:30)
+          const offsetMatch = tzName.match(/GMT([+-])(\d{1,2})(:?(\d{2}))?/);
+          if (offsetMatch) {
+            const sign = offsetMatch[1];
+            const hours = parseInt(offsetMatch[2]);
+            const minutes = offsetMatch[4] ? parseInt(offsetMatch[4]) : 0;
+            const offsetKey = `${sign}${hours}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+            const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+            
+            // Map offsets to full timezone names
+            const offsetToTz = {
+              '+5': 'Pakistan Standard Time', '+05': 'Pakistan Standard Time',
+              '+5:30': 'India Standard Time', '+05:30': 'India Standard Time',
+              '+6': 'Bangladesh Standard Time', '+06': 'Bangladesh Standard Time',
+              '+8': 'China Standard Time', '+08': 'China Standard Time',
+              '+9': 'Japan Standard Time', '+09': 'Japan Standard Time',
+              '+10': 'Australian Eastern Standard Time', '+11': 'Australian Eastern Daylight Time',
+              '-5': 'Eastern Time', '-05': 'Eastern Time',
+              '-6': 'Central Time', '-06': 'Central Time',
+              '-7': 'Mountain Time', '-07': 'Mountain Time',
+              '-8': 'Pacific Time', '-08': 'Pacific Time',
+              '-9': 'Alaska Standard Time', '-09': 'Alaska Standard Time',
+              '-10': 'Hawaii Standard Time',
+              '+0': 'Greenwich Mean Time', '+00': 'Greenwich Mean Time',
+              '+1': 'Central European Time', '+01': 'Central European Time',
+              '+2': 'Eastern European Time', '+02': 'Eastern European Time',
+              '+3': 'Moscow Standard Time', '+03': 'Moscow Standard Time',
+              '+4': 'Gulf Standard Time', '+04': 'Gulf Standard Time',
+            };
+            
+            return offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || tzName;
+          }
+          // If no match, return as is
+          return tzName;
+        }
+        // If it's already a full name, return it
+        return tzName;
+      }
+    } catch (e) {
+      console.error('Error getting timezone full name:', e);
+    }
+  }
+  
+  // Final fallback: format timezone name nicely
+  if (timezoneName) {
+    const parts = timezoneName.split('/');
+    if (parts.length > 1) {
+      // Convert "America/New_York" to "New York Time" or similar
+      const region = parts[0];
+      const city = parts[1].replace(/_/g, ' ');
+      
+      // Special cases
+      if (region === 'America') {
+        if (city.includes('New York') || city.includes('Toronto')) return 'Eastern Time';
+        if (city.includes('Chicago')) return 'Central Time';
+        if (city.includes('Denver')) return 'Mountain Time';
+        if (city.includes('Los Angeles')) return 'Pacific Time';
+      }
+      
+      return city + ' Time';
+    }
+    return timezoneName;
+  }
+  
+  return '';
+}
+
 function showEventDetailsModal(event) {
   // Create modal if it doesn't exist
   let modal = document.getElementById('eventDetailModal');
@@ -595,17 +731,65 @@ function showEventDetailsModal(event) {
   const startDate = startTime ? new Date(startTime) : null;
   const endDate = endTime ? new Date(endTime) : null;
   
-  // Format date and time
+  // Get timezone from event or default to America/New_York for LOI calls
+  // For LOI calls, always use America/New_York (Eastern Time)
+  let eventTimezone = 'America/New_York'; // Default for LOI calls
+  
+  // Check if event has explicit timezone (from backend)
+  if (event.timeZone) {
+    eventTimezone = event.timeZone;
+  } else if (event.start && typeof event.start === 'object' && event.start.timeZone) {
+    eventTimezone = event.start.timeZone;
+  } else if (event.end && typeof event.end === 'object' && event.end.timeZone) {
+    eventTimezone = event.end.timeZone;
+  }
+  
+  // For LOI calls, always force to Eastern Time
+  // Check if this is an LOI call by checking the summary or other indicators
+  const isLOICall = event.summary && (event.summary.toUpperCase().includes('LOI') || event.summary.toUpperCase().includes('LOI CALL'));
+  if (isLOICall) {
+    eventTimezone = 'America/New_York';
+  }
+  
+  console.log('Event timezone determined:', eventTimezone, 'for event:', event.summary);
+  
+  // Format date and time using the event's timezone
   let dateTimeStr = '';
   if (startDate) {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     
-    const dayName = dayNames[startDate.getDay()];
-    const monthName = monthNames[startDate.getMonth()];
-    const day = startDate.getDate();
-    const startTimeOnly = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    const endTimeOnly = endDate ? endDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+    // Format time using the event's timezone
+    const timeOptions = { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true,
+      timeZone: eventTimezone
+    };
+    
+    const startTimeOnly = startDate.toLocaleTimeString('en-US', timeOptions);
+    const endTimeOnly = endDate ? endDate.toLocaleTimeString('en-US', timeOptions) : '';
+    
+    // Get timezone full name
+    let timezoneName = getTimezoneFullName(eventTimezone, startDate);
+    
+    // Get date components using the event's timezone
+    const dateOptions = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric', 
+      weekday: 'long',
+      timeZone: eventTimezone
+    };
+    
+    const startDateStr = startDate.toLocaleDateString('en-US', dateOptions);
+    
+    // Parse the formatted date string to extract components
+    const dateParts = startDateStr.split(', ');
+    const dayName = dateParts[0];
+    const monthDay = dateParts[1].split(' ');
+    const monthName = monthDay[0];
+    const day = parseInt(monthDay[1]);
     
     function getOrdinalSuffix(day) {
       if (day > 3 && day < 21) return 'th';
@@ -617,7 +801,8 @@ function showEventDetailsModal(event) {
       }
     }
     
-    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeOnly}${endTimeOnly ? ' - ' + endTimeOnly : ''}`;
+    // Format: "Sunday, December 28th @ 7:00 PM - 8:00 PM Eastern Time"
+    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeOnly}${endTimeOnly ? ' - ' + endTimeOnly : ''} ${timezoneName || ''}`.trim();
   }
   
   // Set title and subtitle
@@ -720,14 +905,32 @@ function closeEventModal() {
 // Check registration status for an event and show appropriate button
 async function checkRegistrationStatus(eventId, eventJson, calendarId) {
   try {
-    const response = await fetch(`/api/calendar/events/${encodeURIComponent(eventId)}/registration-count`);
+    // Get user email from the form
+    const emailInput = document.getElementById('email');
+    const userEmail = emailInput ? emailInput.value.trim() : '';
+    
+    // Build URL with email parameter if available
+    let url = `/api/calendar/events/${encodeURIComponent(eventId)}/registration-count`;
+    if (userEmail) {
+      url += `?email=${encodeURIComponent(userEmail)}`;
+    }
+    
+    const response = await fetch(url);
     const data = await response.json();
     
     const buttonContainer = document.getElementById('calendarButtonContainer');
     const fullMessageEl = document.getElementById('registrationFullMessage');
     
     if (data.success) {
-      if (data.is_full) {
+      if (data.is_registered) {
+        // User is already registered - disable button and show "Already Registered"
+        if (buttonContainer) {
+          buttonContainer.innerHTML = `<button class="btn-add-calendar" disabled style="opacity: 0.6; cursor: not-allowed;">✓ Already Registered</button>`;
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'none';
+        }
+      } else if (data.is_full) {
         // Event is full - show "Add to Google Calendar" button only
         if (buttonContainer) {
           buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Google Calendar</button>`;
@@ -736,7 +939,7 @@ async function checkRegistrationStatus(eventId, eventJson, calendarId) {
           fullMessageEl.style.display = 'block';
         }
       } else {
-        // Event has slots - show button that opens Google Calendar
+        // Event has slots and user is not registered - show button that opens Google Calendar
         if (buttonContainer) {
           buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
         }
