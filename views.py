@@ -1059,12 +1059,12 @@ async def handle_form_submission(request: Request, form_type: str, template_name
         # CIM-specific fields (applies to both CIM and CIM_TRAINING)
         if form_type == "CIM" or form_type == "CIM_TRAINING":
             cim_call_id = (form.get('cim_call_id') or '').strip()
-            if not cim_call_id:
-                return templates.TemplateResponse(template_name, {
-                    "request": request,
-                    "error": "Please select a live call for your CIM.",
-                    "form_data": {k: form.get(k) for k in form.keys()}
-                })
+            # if not cim_call_id:
+            #     return templates.TemplateResponse(template_name, {
+            #         "request": request,
+            #         "error": "Please select a live call for your CIM.",
+            #         "form_data": {k: form.get(k) for k in form.keys()}
+            #     })
             
             form_data.update({
                 'gm_in_place': (form.get('gm_in_place') or '').strip() or None,
