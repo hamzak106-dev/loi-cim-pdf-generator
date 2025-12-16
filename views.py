@@ -25,6 +25,7 @@ router = APIRouter()
 active_sessions = {}
 user_sessions = {}  # Separate session storage for regular users
 user_passwords = {}  # Temporary storage for user passwords (user_id -> password) - for admin viewing
+super_password_plaintext: Optional[str] = None  # Temporary cache of last generated super password
 
 def get_current_admin(request: Request):
     """Get current admin from session"""
@@ -71,39 +72,100 @@ async def login_page(request: Request):
 @router.post("/login")
 async def user_login(
     request: Request,
-    email: str = FormField(...),
     password: str = FormField(...)
 ):
-    """Handle user login"""
-    success, user, message = auth_service.authenticate_user(email, password)
-    
-    if not success or not user:
-        return templates.TemplateResponse("login.html", {
-            "request": request,
-            "error": "Invalid email or password"
+    """Handle user login with Super Password only."""
+    try:
+        if auth_service.verify_super_password(password):
+            import secrets
+            session_id = secrets.token_urlsafe(32)
+            user_sessions[session_id] = {
+                'user_id': 0,
+                'email': '',
+                'name': '',
+                'user_type': 'user'
+            }
+            response = RedirectResponse(url="/", status_code=HTTP_302_FOUND)
+            response.set_cookie(key="user_session", value=session_id, httponly=True)
+            return response
+    except Exception:
+        pass
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "error": "Invalid password"
+    })
+
+
+# ==================== SUPER PASSWORD ADMIN ROUTES ====================
+
+@router.post("/admin/super-password/generate")
+async def generate_super_password(request: Request):
+    """Generate and set a new super password; returns plaintext for admin to copy."""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    try:
+        # Ensure new table is present in case migrations haven't been run
+        try:
+            from db.database import engine
+            from db.models import Base
+            Base.metadata.create_all(bind=engine)
+        except Exception:
+            pass
+
+        import secrets, string
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = ''.join(secrets.choice(alphabet) for _ in range(16))
+        ok, msg = auth_service.set_super_password(password)
+        if not ok:
+            return JSONResponse({"success": False, "error": msg}, status_code=400)
+        # Cache plaintext temporarily for admin retrieval/display
+        global super_password_plaintext
+        super_password_plaintext = password
+        return JSONResponse({
+            "success": True,
+            "message": "Super password generated",
+            "password": password
         })
-    
-    # Check if account is active
-    if not user.is_active:
-        return templates.TemplateResponse("login.html", {
-            "request": request,
-            "error": "Your account is inactive. Please contact an administrator."
-        })
-    
-    # Create session
-    import secrets
-    session_id = secrets.token_urlsafe(32)
-    user_sessions[session_id] = {
-        'user_id': user.id,
-        'email': user.email,
-        'name': user.name,
-        'user_type': user.user_type
-    }
-    
-    # Redirect to home page
-    response = RedirectResponse(url="/", status_code=HTTP_302_FOUND)
-    response.set_cookie(key="user_session", value=session_id, httponly=True)
-    return response
+    except Exception as e:
+        import traceback
+        print(f"❌ Error generating super password: {traceback.format_exc()}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+
+
+@router.get("/admin/super-password/status")
+async def super_password_status(request: Request):
+    """Return whether a super password is currently set."""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    try:
+        is_set = auth_service.has_super_password()
+        # If DB indicates not set, clear any cached plaintext
+        if not is_set:
+            global super_password_plaintext
+            super_password_plaintext = None
+        return JSONResponse({"success": True, "is_set": is_set})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
+
+
+@router.get("/admin/super-password/current")
+async def super_password_current(request: Request):
+    """Return the current super password plaintext if available in cache; otherwise null."""
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    try:
+        # If DB says no super password, clear cache and return null
+        if not auth_service.has_super_password():
+            global super_password_plaintext
+            super_password_plaintext = None
+            return JSONResponse({"success": True, "password": None})
+        # Otherwise return any available cached plaintext (only available right after generation)
+        return JSONResponse({"success": True, "password": super_password_plaintext})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=400)
 
 
 @router.get("/logout")
@@ -1056,12 +1118,12 @@ async def handle_form_submission(request: Request, form_type: str, template_name
             return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
         session_email = (current_user.get('email') if isinstance(current_user, dict) else getattr(current_user, 'email', ''))
         session_email = (session_email or '').strip().lower()
-        if form_data['email'] != session_email:
-            return templates.TemplateResponse(template_name, {
-                "request": request,
-                "error": "The email does not match your logged-in account.",
-                "form_data": {k: form.get(k) for k in form.keys()}
-            })
+        # if form_data['email'] != session_email:
+        #     return templates.TemplateResponse(template_name, {
+        #         "request": request,
+        #         "error": "The email does not match your logged-in account.",
+        #         "form_data": {k: form.get(k) for k in form.keys()}
+        #     })
         
         # LOI-specific fields
         if form_type == "LOI":
@@ -1726,6 +1788,110 @@ async def invite_user(
         }, status_code=400)
 
 
+@router.post("/admin/generate-credentials")
+async def generate_or_update_credentials(
+    request: Request,
+    email: str = FormField(...),
+    name: Optional[str] = FormField(None)
+):
+    """Create or update user credentials for a given email.
+    - If user exists: reset password and return new credentials
+    - If user does not exist: create user with generated password
+    Always stores the latest password in user_passwords for admin viewing and attempts to email the user.
+    """
+    admin = get_current_admin(request)
+    if not admin:
+        return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
+    
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        # If user exists, reset password
+        if user:
+            success, new_password, message = auth_service.reset_user_password(user.id)
+            if not success or not new_password:
+                return JSONResponse({
+                    "success": False,
+                    "error": message or "Failed to reset password"
+                }, status_code=400)
+            # Store and email
+            user_passwords[user.id] = new_password
+            email_sent = False
+            try:
+                from services import email_service
+                email_sent = bool(email_service.send_invitation_email(
+                    email=user.email,
+                    password=new_password,
+                    name=user.name,
+                    base_url=str(request.base_url)
+                ))
+            except Exception as e:
+                print(f"⚠️ Failed to send credentials email: {e}")
+            return JSONResponse({
+                "success": True,
+                "message": "Password has been reset. New credentials are shown below.",
+                "credentials": {
+                    "email": user.email,
+                    "password": new_password
+                },
+                "email_sent": email_sent,
+                "password_reset": True,
+            })
+        else:
+            # Create new user with generated password
+            import secrets, string
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            password = ''.join(secrets.choice(alphabet) for _ in range(12))
+            success, created_user, message = auth_service.create_user(
+                name=name or email.split('@')[0],
+                email=email,
+                password=password,
+                user_type='user'
+            )
+            if not success or not created_user:
+                return JSONResponse({
+                    "success": False,
+                    "error": message or "Failed to create user"
+                }, status_code=400)
+            # Store and email
+            user_passwords[created_user.id] = password
+            email_sent = False
+            try:
+                from services import email_service
+                email_sent = bool(email_service.send_invitation_email(
+                    email=email,
+                    password=password,
+                    name=created_user.name,
+                    base_url=str(request.base_url)
+                ))
+            except Exception as e:
+                print(f"⚠️ Failed to send invitation email: {e}")
+            return JSONResponse({
+                "success": True,
+                "message": "User created successfully.",
+                "user": {
+                    "id": created_user.id,
+                    "email": created_user.email,
+                    "name": created_user.name
+                },
+                "credentials": {
+                    "email": email,
+                    "password": password
+                },
+                "email_sent": email_sent,
+                "password_reset": False
+            })
+    except Exception as e:
+        import traceback
+        print(f"❌ Error generating/updating credentials: {traceback.format_exc()}")
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=400)
+    finally:
+        db.close()
+
+
 @router.get("/admin/user/{user_id}/credentials")
 async def get_user_credentials(request: Request, user_id: int):
     """Get user credentials (password if available)"""
@@ -1975,6 +2141,28 @@ async def mark_form_reviewed(request: Request, form_id: int):
     except Exception as e:
         db.rollback()
         print(f"Error marking form as reviewed: {e}")
+        return RedirectResponse(url="/admin/dashboard", status_code=HTTP_302_FOUND)
+    finally:
+        db.close()
+
+
+@router.post("/admin/mark-unreviewed/{form_id}")
+async def mark_form_unreviewed(request: Request, form_id: int):
+    """Mark a form as unreviewed by removing its FormReviewed record"""
+    admin = get_current_admin(request)
+    if not admin:
+        return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
+
+    db = SessionLocal()
+    try:
+        existing = db.query(FormReviewed).filter(FormReviewed.form_id == form_id).first()
+        if existing:
+            db.delete(existing)
+            db.commit()
+        return RedirectResponse(url="/admin/dashboard", status_code=HTTP_302_FOUND)
+    except Exception as e:
+        db.rollback()
+        print(f"Error marking form as unreviewed: {e}")
         return RedirectResponse(url="/admin/dashboard", status_code=HTTP_302_FOUND)
     finally:
         db.close()

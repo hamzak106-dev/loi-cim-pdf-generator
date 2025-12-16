@@ -101,6 +101,18 @@
 .table-container::-webkit-scrollbar {
   display: none;
 }
+
+/* Keep Super Password input styling constant on focus/active */
+#super-pass-value,
+#super-pass-value:hover,
+#super-pass-value:focus,
+#super-pass-value:active {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
 </style>
 
 <div class="container-fluid py-4">
@@ -185,15 +197,15 @@
     </div>
   </div>
   
-  <!-- Invite User Section -->
-  <div class="row mb-4">
+  <!-- Generate/Update Password Section -->
+  <!--<div class="row mb-4">
     <div class="col-12">
       <div class="card">
         <div class="card-header">
-          <h4 class="mb-0"><i class="bi bi-person-plus"></i> Invite User</h4>
+          <h4 class="mb-0"><i class="bi bi-key"></i> Generate / Update User Password</h4>
         </div>
         <div class="card-body">
-          <form id="invite-user-form" onsubmit="inviteUser(event)">
+          <form id="generate-credentials-form" onsubmit="generateOrUpdateCredentials(event)">
             <div class="row">
               <div class="col-md-4">
                 <label for="user-email" class="form-label">Email Address <span class="text-danger">*</span></label>
@@ -218,7 +230,7 @@
               </div>
               <div class="col-md-4 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100" id="invite-btn">
-                  <i class="bi bi-send"></i> Send Invitation
+                  <i class="bi bi-shield-lock"></i> Generate / Update Password
                 </button>
               </div>
             </div>
@@ -227,10 +239,38 @@
         </div>
       </div>
     </div>
+  </div>-->
+  
+  <!-- Super Password Section -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h4 class="mb-0"><i class="bi bi-shield-lock"></i> Super Password</h4>
+          <small class="text-muted">Allows login without email</small>
+        </div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-3 align-items-center">
+            <button id="super-pass-btn" class="btn btn-outline-warning" onclick="generateSuperPassword(this)">
+              <i class="bi bi-key"></i> Generate Password
+            </button>
+            <div class="d-flex align-items-center" style="min-width: 340px;">
+              <label class="me-2 mb-0 text-muted">Password:</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="super-pass-value" value="" placeholder="Not set / not available" readonly>
+                <button class="btn btn-outline-light" onclick="copyCurrentSuperPassword(event)"><i class="bi bi-clipboard"></i></button>
+              </div>
+            </div>
+            <!-- <span id="super-pass-status" class="text-muted"></span> -->
+          </div>
+          <div class="form-text mt-2">Generate a single password that any user can use to log in without an email.</div>
+        </div>
+      </div>
+    </div>
   </div>
   
   <!-- Users List Section -->
-  <div class="row mb-4">
+  <!-- <div class="row mb-4">
     <div class="col-12">
       <div class="card">
         <div class="card-header">
@@ -295,7 +335,7 @@
               </tbody>
             </table>
           </div>
-          <!-- Pagination -->
+          
           {% if user_total_pages > 1 %}
           <div class="card-footer">
             <nav aria-label="Users pagination">
@@ -386,7 +426,7 @@
         </div>
       </div>
     </div>
-  </div>
+  </div> -->
   
   <!-- Unified Forms Table -->
   <div class="row mb-5">
@@ -471,9 +511,21 @@
                     {% endif %}
                   </td>
                   <td onclick="event.stopPropagation()">
-                    <form method="POST" action="/admin/mark-reviewed/{{ form.id }}" style="display: inline;">
-                      <button type="submit" class="btn btn-sm btn-success">Reviewed</button>
-                    </form>
+                    <div class="btn-group">
+                      <button type="button" class="btn btn-sm btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" onclick="event.stopPropagation()">
+                        Actions
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-dark">
+                        <li>
+                          <form method="POST" action="/admin/mark-reviewed/{{ form.id }}" onclick="event.stopPropagation()" style="display: inline;">
+                            <button type="submit" class="dropdown-item text-success">
+                              <i class="bi bi-check2-circle"></i> Mark Reviewed
+                            </button>
+                          </form>
+                        </li>
+                        <!-- You can add more actions here if needed -->
+                      </ul>
+                    </div>
                   </td>
                 </tr>
                 {% else %}
@@ -510,6 +562,7 @@
                   <th>Offer Price</th>
                   <th>PDF URL</th>
                   <th>File URL</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -543,6 +596,13 @@
                     {% else %}
                       <span class="text-muted">--</span>
                     {% endif %}
+                  </td>
+                  <td onclick="event.stopPropagation()">
+                    <form method="POST" action="/admin/mark-unreviewed/{{ form.id }}" style="display: inline;">
+                      <button type="submit" class="btn btn-sm btn-outline-warning">
+                        <i class="bi bi-arrow-counterclockwise"></i> Unreview
+                      </button>
+                    </form>
                   </td>
                 </tr>
                 {% else %}
@@ -651,7 +711,7 @@ function filterTable() {
   }
 }
 
-async function inviteUser(event) {
+async function generateOrUpdateCredentials(event) {
   event.preventDefault();
   
   const form = event.target;
@@ -661,11 +721,11 @@ async function inviteUser(event) {
   
   // Disable button and show loading
   inviteBtn.disabled = true;
-  inviteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+  inviteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
   messageDiv.innerHTML = '';
   
   try {
-    const response = await fetch('/admin/invite-user', {
+    const response = await fetch('/admin/generate-credentials', {
       method: 'POST',
       body: formData
     });
@@ -674,26 +734,26 @@ async function inviteUser(event) {
     
     if (data.success) {
       // Show credentials modal
-      showCredentialsModal(data.credentials, data.email_sent, false, null);
+      showCredentialsModal(data.credentials, data.email_sent, Boolean(data.password_reset), data.message || null);
       
       // Reset form
       form.reset();
       
       // Show success message
-      messageDiv.innerHTML = '<div class="alert alert-success">User invited successfully!</div>';
+      messageDiv.innerHTML = '<div class="alert alert-success">Credentials generated successfully!</div>';
       
       // Reload page after 2 seconds to update user count
       setTimeout(() => {
         window.location.reload();
       }, 2000);
     } else {
-      messageDiv.innerHTML = `<div class="alert alert-danger">${data.error || 'Failed to invite user'}</div>`;
+      messageDiv.innerHTML = `<div class="alert alert-danger">${data.error || 'Failed to generate credentials'}</div>`;
     }
   } catch (error) {
     messageDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
   } finally {
     inviteBtn.disabled = false;
-    inviteBtn.innerHTML = '<i class="bi bi-send"></i> Send Invitation';
+    inviteBtn.innerHTML = '<i class="bi bi-shield-lock"></i> Generate / Update Password';
   }
 }
 
@@ -819,6 +879,131 @@ function copyToClipboard(evt, text) {
       alert('Failed to copy to clipboard');
     });
 }
+
+function setSuperPassValue(value) {
+  const input = document.getElementById('super-pass-value');
+  if (!input) return;
+  input.value = value || '';
+  if (!value) {
+    input.placeholder = 'Not set / not available';
+  }
+  updateSuperPassButtonLabel();
+}
+
+async function fetchCurrentSuperPassword() {
+  try {
+    const res = await fetch('/admin/super-password/current');
+    const data = await res.json();
+    if (data.success) {
+      setSuperPassValue(data.password || '');
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+function copyCurrentSuperPassword(evt) {
+  const val = (document.getElementById('super-pass-value') || {}).value || '';
+  if (!val) {
+    alert('No super password available to copy. Generate one first.');
+    return;
+  }
+  copyToClipboard(evt, val);
+}
+
+function updateSuperPassButtonLabel() {
+  const btn = document.getElementById('super-pass-btn');
+  const input = document.getElementById('super-pass-value');
+  if (!btn || !input) return;
+  const hasPassword = Boolean((input.value || '').trim());
+  btn.innerHTML = hasPassword 
+    ? '<i class="bi bi-key"></i> Update Password' 
+    : '<i class="bi bi-key"></i> Generate Password';
+}
+
+// ===== Super Password Helpers =====
+async function updateSuperPasswordStatus() {
+  try {
+    const res = await fetch('/admin/super-password/status');
+    const data = await res.json();
+    const el = document.getElementById('super-pass-status');
+    if (!el) return;
+    if (data.success) {
+      el.textContent = data.is_set ? 'Status: Set' : 'Status: Not set';
+    } else {
+      el.textContent = 'Status: Unknown';
+    }
+  } catch (e) {
+    const el = document.getElementById('super-pass-status');
+    if (el) el.textContent = 'Status: Error';
+  }
+}
+
+function showSuperPasswordModal(password) {
+  const modal = `
+    <div class="modal fade" id="superPasswordModal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog">
+        <div class="modal-content" style="background-color: rgba(5, 13, 30, 0.95); color: #fff;">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-shield-lock"></i> Super Password</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle"></i>
+              <strong>Important:</strong> Anyone with this password can log in without email. Keep it secure.
+            </div>
+            <div class="mb-3">
+              <label class="form-label fw-bold">Password:</label>
+              <div class="input-group">
+                <input type="text" class="form-control" id="super-pass-input" value="${password}" readonly>
+                <button class="btn btn-outline-light" onclick="copyToClipboard(event, '${password}')">
+                  <i class="bi bi-clipboard"></i> Copy
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  const existing = document.getElementById('superPasswordModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', modal);
+  const modalElement = new bootstrap.Modal(document.getElementById('superPasswordModal'));
+  modalElement.show();
+}
+
+async function generateSuperPassword(btn) {
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+  try {
+    const res = await fetch('/admin/super-password/generate', { method: 'POST' });
+    const data = await res.json();
+    if (data.success && data.password) {
+      updateSuperPasswordStatus();
+      setSuperPassValue(data.password);
+      updateSuperPassButtonLabel();
+    } else {
+      alert(data.error || 'Failed to generate super password');
+    }
+  } catch (e) {
+    alert('Error generating super password: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
+
+// Initialize super password status on load
+document.addEventListener('DOMContentLoaded', () => {
+  updateSuperPasswordStatus();
+  fetchCurrentSuperPassword();
+  updateSuperPassButtonLabel();
+});
 
 async function resendUserCredentials(userId, email, name) {
   try {

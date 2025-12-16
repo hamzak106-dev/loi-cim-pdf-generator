@@ -256,7 +256,7 @@ async function fetchCIMCalls() {
       
       // Format: "Event Name - Date/Time (Y seats available)"
       // If full: disable the option
-      const seatsText = call.is_full ? '0 seats remaining' : `${call.available_seats} seat${call.available_seats !== 1 ? 's' : ''} remaining`;
+      const seatsText = call.is_full ? '0 reviews remaining' : `${call.available_seats} review${call.available_seats !== 1 ? 's' : ''} remaining`;
       
       option.textContent = `${call.name} - ${call.time} (${seatsText})`;
       
@@ -895,8 +895,7 @@ async function handleUnifiedCalendarButton(button) {
                   </div>
                   <div class="col-md-6">
                     <label for="email" class="form-label fw-semibold">Email</label>
-                    <input type="email" class="form-control form-control-lg" id="email_display" disabled value="{{ form_data.email if form_data else (user_email if user_email else '') }}">
-                    <input type="hidden" id="email" name="email" value="{{ form_data.email if form_data else (user_email if user_email else '') }}">
+                    <input type="email" class="form-control form-control-lg" id="email" name="email" required value="{{ form_data.email if form_data else (user_email if user_email else '') }}">
                   </div>
                 </div>
               </div>

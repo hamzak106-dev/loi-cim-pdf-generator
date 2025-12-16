@@ -488,3 +488,19 @@ class EventRegistration(Base):
             'email': self.email,
             'registered_at': self.registered_at.isoformat() if self.registered_at else None,
         }
+
+
+class AppSetting(Base):
+    """
+    Application-wide key-value settings storage
+    Used to persist items like the super password hash
+    """
+    __tablename__ = 'app_settings'
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, index=True, nullable=False)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<AppSetting(key='{self.key}')>"

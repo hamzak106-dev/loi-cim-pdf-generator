@@ -3,7 +3,7 @@ Authentication Service
 Handles user authentication and session management
 """
 from werkzeug.security import check_password_hash, generate_password_hash
-from db import User, SessionLocal
+from db import User, SessionLocal, AppSetting
 from typing import Optional, Tuple
 
 
@@ -45,6 +45,56 @@ class AuthService:
             return False, None, "Authentication failed"
         finally:
             db.close()
+
+    # ===== Super Password Management =====
+    SUPER_PASSWORD_KEY = 'super_password_hash'
+
+    @staticmethod
+    def set_super_password(new_password: str) -> Tuple[bool, str]:
+        """Hash and store the super password in AppSetting (hashed only)."""
+        db = SessionLocal()
+        try:
+            hashed = generate_password_hash(new_password)
+            record = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
+            if record:
+                record.value = hashed
+            else:
+                record = AppSetting(key=AuthService.SUPER_PASSWORD_KEY, value=hashed)
+                db.add(record)
+            db.commit()
+            return True, 'Super password updated'
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Error setting super password: {e}")
+            return False, f"Failed to set super password: {str(e)}"
+        finally:
+            db.close()
+
+    @staticmethod
+    def verify_super_password(password: str) -> bool:
+        """Verify a plaintext password against the stored super password hash."""
+        if not password:
+            return False
+        db = SessionLocal()
+        try:
+            record = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
+            if not record:
+                return False
+            return check_password_hash(record.value, password)
+        except Exception as e:
+            print(f"❌ Error verifying super password: {e}")
+            return False
+        finally:
+            db.close()
+
+    @staticmethod
+    def has_super_password() -> bool:
+        db = SessionLocal()
+        try:
+            return db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first() is not None
+        finally:
+            db.close()
+
     
     @staticmethod
     def get_user_by_id(user_id: int) -> Optional[User]:
