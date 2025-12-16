@@ -64,9 +64,12 @@ async def login_page(request: Request):
     # If already logged in, redirect to home
     if get_current_user(request):
         return RedirectResponse(url="/", status_code=HTTP_302_FOUND)
-    return templates.TemplateResponse("login.html", {
-        "request": request
-    })
+    # Support PRG pattern: show error only when explicitly requested via query param
+    error_param = request.query_params.get("error")
+    context = {"request": request}
+    if error_param:
+        context["error"] = "Invalid password"
+    return templates.TemplateResponse("login.html", context)
 
 
 @router.post("/login")
@@ -90,10 +93,8 @@ async def user_login(
             return response
     except Exception:
         pass
-    return templates.TemplateResponse("login.html", {
-        "request": request,
-        "error": "Invalid password"
-    })
+    # PRG pattern on failure to avoid cached POST page showing stale error
+    return RedirectResponse(url="/login?error=1", status_code=HTTP_303_SEE_OTHER)
 
 
 # ==================== SUPER PASSWORD ADMIN ROUTES ====================
