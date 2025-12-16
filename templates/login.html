@@ -13,9 +13,18 @@
       
       <div class="card-body p-4">
         {% if error %}
-        <div class="alert alert-danger" role="alert">
+        <div id="login-error" class="alert alert-danger" role="alert">
           {{ error }}
         </div>
+        <script>
+          // Hide the invalid password message after 2 seconds
+          setTimeout(function () {
+            var el = document.getElementById('login-error');
+            if (el) {
+              el.style.display = 'none';
+            }
+          }, 2000);
+        </script>
         {% endif %}
         
         <form method="POST" action="/login">
@@ -29,7 +38,7 @@
               name="password" 
               required
               autofocus
-              placeholder="Enter the Password provided by admin"
+              placeholder="Enter Password.."
             >
             <div class="form-text text-muted">Use the Password provided by the admin to log in.</div>
           </div>
