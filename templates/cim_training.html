@@ -405,6 +405,31 @@
 }
 </style>
 <script>
+// Auto-dismiss error alert after 3 seconds (only for this page)
+document.addEventListener('DOMContentLoaded', function () {
+  const errorAlert = document.querySelector('.alert.alert-danger');
+  if (errorAlert) {
+    setTimeout(() => {
+      try {
+        if (window.bootstrap && bootstrap.Alert) {
+          const alertInstance = bootstrap.Alert.getOrCreateInstance(errorAlert);
+          alertInstance.close();
+        } else {
+          // Fallback: hide and remove
+          errorAlert.classList.remove('show');
+          // Remove after transition if using .fade
+          errorAlert.addEventListener('transitionend', () => errorAlert.remove(), { once: true });
+          // Hard timeout fallback
+          setTimeout(() => errorAlert.remove(), 500);
+        }
+      } catch (e) {
+        // As a last resort just remove the element
+        errorAlert.remove();
+      }
+    }, 3000);
+  }
+});
+
 function toggleSearchNarrative() {
   const select = document.getElementById('cim_search_narrative_fit');
   const section = document.getElementById('search_narrative_section');

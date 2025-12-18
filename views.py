@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException, Form as FormFiel
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sa_func
 from starlette.status import HTTP_302_FOUND, HTTP_303_SEE_OTHER
 from db import Form, FormType, LOIQuestion, CIMQuestion, User, FormReviewed, MeetScheduler, MeetingType, MeetingInstance, MeetingRegistration, EventRegistration, get_db, SessionLocal
 from services import pdf_service, process_form_submission, auth_service, create_calendar_service
@@ -13,9 +14,12 @@ from tasks.pdf_tasks import process_submission_complete
 from datetime import datetime, timedelta
 from typing import Optional
 import os
+from datetime import datetime, timezone
 import tempfile
 import pytz
 from config import settings
+import hmac
+import hashlib
 from googleapiclient.errors import HttpError
 
 templates = Jinja2Templates(directory="templates")
@@ -23,7 +27,7 @@ router = APIRouter()
 
 # Session management (simple in-memory for demo - use proper session management in production)
 active_sessions = {}
-user_sessions = {}  # Separate session storage for regular users
+user_sessions = {}  # Deprecated for user access; kept for compatibility if needed
 user_passwords = {}  # Temporary storage for user passwords (user_id -> password) - for admin viewing
 super_password_plaintext: Optional[str] = None  # Temporary cache of last generated super password
 
@@ -41,12 +45,31 @@ def require_admin(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     return admin
 
+def _sign(value: str) -> str:
+    return hmac.new(settings.SECRET_KEY.encode(), value.encode(), hashlib.sha256).hexdigest()
+
+def _make_access_cookie() -> str:
+    val = "granted"
+    sig = _sign(val)
+    return f"{val}|{sig}"
+
+def _verify_access_cookie(token: str) -> bool:
+    try:
+        val, sig = token.split("|", 1)
+    except ValueError:
+        return False
+    expected = _sign(val)
+    return hmac.compare_digest(sig, expected) and val == "granted"
+
 def get_current_user(request: Request):
-    """Get current user from session"""
-    session_id = request.cookies.get("user_session")
-    if not session_id or session_id not in user_sessions:
+    """Get current user via signed access cookie (password protection gate)."""
+    token = request.cookies.get("user_access")
+    if not token:
         return None
-    return user_sessions[session_id]
+    if not _verify_access_cookie(token):
+        return None
+    # Minimal user dict to indicate access granted
+    return {'user_id': 0, 'email': '', 'name': '', 'user_type': 'user'}
 
 def require_user(request: Request):
     """Require user authentication"""
@@ -58,9 +81,9 @@ def require_user(request: Request):
 
 # ==================== PUBLIC ROUTES ====================
 
-@router.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    """User login page"""
+@router.get("/access", response_class=HTMLResponse)
+async def access_page(request: Request):
+    """Password protection page (not an account login)."""
     # If already logged in, redirect to home
     if get_current_user(request):
         return RedirectResponse(url="/", status_code=HTTP_302_FOUND)
@@ -72,29 +95,25 @@ async def login_page(request: Request):
     return templates.TemplateResponse("login.html", context)
 
 
-@router.post("/login")
-async def user_login(
+@router.post("/access")
+async def user_access(
     request: Request,
     password: str = FormField(...)
 ):
-    """Handle user login with Super Password only."""
+    """Handle password protection with Super Password only (no user accounts)."""
     try:
         if auth_service.verify_super_password(password):
-            import secrets
-            session_id = secrets.token_urlsafe(32)
-            user_sessions[session_id] = {
-                'user_id': 0,
-                'email': '',
-                'name': '',
-                'user_type': 'user'
-            }
             response = RedirectResponse(url="/", status_code=HTTP_302_FOUND)
-            response.set_cookie(key="user_session", value=session_id, httponly=True)
+            # Set signed, long-lived cookie so access persists across restarts
+            token = _make_access_cookie()
+            # 30 days
+            max_age = 30 * 24 * 60 * 60
+            response.set_cookie(key="user_access", value=token, httponly=True, max_age=max_age)
             return response
     except Exception:
         pass
     # PRG pattern on failure to avoid cached POST page showing stale error
-    return RedirectResponse(url="/login?error=1", status_code=HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/access?error=1", status_code=HTTP_303_SEE_OTHER)
 
 
 # ==================== SUPER PASSWORD ADMIN ROUTES ====================
@@ -153,18 +172,17 @@ async def super_password_status(request: Request):
 
 @router.get("/admin/super-password/current")
 async def super_password_current(request: Request):
-    """Return the current super password plaintext if available in cache; otherwise null."""
+    """Return the current super password plaintext from DB for admin display."""
     admin = get_current_admin(request)
     if not admin:
         return JSONResponse({"success": False, "error": "Unauthorized"}, status_code=401)
     try:
-        # If DB says no super password, clear cache and return null
-        if not auth_service.has_super_password():
-            global super_password_plaintext
-            super_password_plaintext = None
-            return JSONResponse({"success": True, "password": None})
-        # Otherwise return any available cached plaintext (only available right after generation)
-        return JSONResponse({"success": True, "password": super_password_plaintext})
+        # Always fetch plaintext from DB (only stored for admin visibility)
+        plaintext = auth_service.get_super_password_plain()
+        return JSONResponse({
+            "success": True,
+            "password": plaintext
+        })
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=400)
 
@@ -172,13 +190,18 @@ async def super_password_current(request: Request):
 @router.get("/logout")
 async def user_logout(request: Request):
     """Logout user"""
-    session_id = request.cookies.get("user_session")
-    if session_id in user_sessions:
-        del user_sessions[session_id]
-    
-    response = RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+    response = RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
+    # Clear both legacy and new cookies
     response.delete_cookie("user_session")
+    response.delete_cookie("user_access")
     return response
+
+# Backward compatibility: redirect /login to /access
+@router.get("/login", response_class=HTMLResponse)
+async def legacy_login_redirect(request: Request):
+    if get_current_user(request):
+        return RedirectResponse(url="/", status_code=HTTP_302_FOUND)
+    return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -186,7 +209,7 @@ async def home_page(request: Request):
     """Homepage - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     
     return templates.TemplateResponse("index.html", {
         "request": request,
@@ -1181,6 +1204,38 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                 "form_data": {k: form.get(k) for k in form.keys()}
             })
         
+        # Enforce monthly submission limit per email (max 5 per calendar month) ONLY for CIM_TRAINING
+        if form_type == "CIM_TRAINING":
+            try:
+                db = SessionLocal()
+                now_utc = datetime.now(timezone.utc)
+                # Start of current calendar month in UTC
+                month_start = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                # Start of next month in UTC
+                if month_start.month == 12:
+                    next_month_start = month_start.replace(year=month_start.year + 1, month=1)
+                else:
+                    next_month_start = month_start.replace(month=month_start.month + 1)
+                monthly_count = db.query(Form).filter(
+                    Form.email == form_data['email'],
+                    Form.form_type == FormType.CIM_TRAINING,
+                    Form.created_at >= month_start,
+                    Form.created_at < next_month_start
+                ).count()
+            finally:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+            
+            MAX_MONTHLY_SUBMISSIONS = 5
+            if monthly_count >= MAX_MONTHLY_SUBMISSIONS:
+                return templates.TemplateResponse(template_name, {
+                    "request": request,
+                    "error": f"❌ Monthly submission limit reached for CIM Training. You can submit up to {MAX_MONTHLY_SUBMISSIONS} CIM Training forms per month.",
+                    "form_data": {k: form.get(k) for k in form.keys()}
+                })
+        
         # Process submission using helper function
         success, submission, message = process_form_submission(form_data, form_type)
         
@@ -2169,6 +2224,38 @@ async def mark_form_unreviewed(request: Request, form_id: int):
         db.close()
 
 
+def get_form_counts(db, email: str):
+    """Return current-month and all-time counts per form type for a given email"""
+    email_norm = email.strip().lower()
+    
+    # Timezone-aware current UTC datetime
+    now_utc = datetime.now(timezone.utc)
+    month_start = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    date_expr = sa_func.coalesce(Form.created_at, Form.updated_at)
+    
+    month_counts = {}
+    total_counts = {}
+    
+    for form_type in [FormType.LOI, FormType.CIM, FormType.CIM_TRAINING]:
+        # Current month count
+        month_count = db.query(Form).filter(
+            sa_func.lower(Form.email) == email_norm,
+            Form.form_type == form_type,
+            date_expr >= month_start,
+            date_expr <= now_utc
+        ).count()
+        month_counts[form_type.value] = month_count
+        
+        # All-time count
+        total_count = db.query(Form).filter(
+            sa_func.lower(Form.email) == email_norm,
+            Form.form_type == form_type
+        ).count()
+        total_counts[form_type.value] = total_count
+    
+    return month_counts, total_counts
+
 @router.get("/admin/record/{record_id}", response_class=HTMLResponse)
 async def admin_record_detail(request: Request, record_id: int):
     """View record details using unified Form model"""
@@ -2185,12 +2272,15 @@ async def admin_record_detail(request: Request, record_id: int):
         
         # Check if reviewed
         is_reviewed = db.query(FormReviewed).filter(FormReviewed.form_id == record_id).first() is not None
+        month_counts, total_counts = get_form_counts(db, record.email)
         
         return templates.TemplateResponse("accounts/record_detail.html", {
             "request": request,
             "record": record,
             "form_type": record.form_type.value,
-            "is_reviewed": is_reviewed
+            "is_reviewed": is_reviewed,
+            "month_counts": month_counts,
+            "total_counts": total_counts
         })
     finally:
         db.close()

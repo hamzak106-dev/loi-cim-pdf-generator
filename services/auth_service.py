@@ -47,19 +47,19 @@ class AuthService:
             db.close()
 
     # ===== Super Password Management =====
-    SUPER_PASSWORD_KEY = 'super_password_hash'
+    # Store super password as plaintext (admin-only visibility). Hash is no longer used.
+    SUPER_PASSWORD_KEY = 'super_password_plain'
 
     @staticmethod
     def set_super_password(new_password: str) -> Tuple[bool, str]:
-        """Hash and store the super password in AppSetting (hashed only)."""
+        """Store the super password as plaintext in AppSetting."""
         db = SessionLocal()
         try:
-            hashed = generate_password_hash(new_password)
             record = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
             if record:
-                record.value = hashed
+                record.value = new_password
             else:
-                record = AppSetting(key=AuthService.SUPER_PASSWORD_KEY, value=hashed)
+                record = AppSetting(key=AuthService.SUPER_PASSWORD_KEY, value=new_password)
                 db.add(record)
             db.commit()
             return True, 'Super password updated'
@@ -72,17 +72,32 @@ class AuthService:
 
     @staticmethod
     def verify_super_password(password: str) -> bool:
-        """Verify a plaintext password against the stored super password hash."""
+        """Verify the super password. Prefer plaintext; fallback to legacy hash and migrate on success."""
         if not password:
             return False
         db = SessionLocal()
         try:
-            record = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
-            if not record:
-                return False
-            return check_password_hash(record.value, password)
+            # 1) Prefer plaintext key
+            plain = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
+            if plain and plain.value:
+                return plain.value == password
+
+            # 2) Fallback: legacy hashed key
+            legacy = db.query(AppSetting).filter(AppSetting.key == 'super_password_hash').first()
+            if legacy and legacy.value and check_password_hash(legacy.value, password):
+                # Migrate: store plaintext for future checks
+                existing_plain = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
+                if existing_plain:
+                    existing_plain.value = password
+                else:
+                    db.add(AppSetting(key=AuthService.SUPER_PASSWORD_KEY, value=password))
+                db.commit()
+                return True
+
+            return False
         except Exception as e:
             print(f"❌ Error verifying super password: {e}")
+            db.rollback()
             return False
         finally:
             db.close()
@@ -91,7 +106,38 @@ class AuthService:
     def has_super_password() -> bool:
         db = SessionLocal()
         try:
-            return db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first() is not None
+            # Consider either plaintext or legacy hashed key present
+            has_plain = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first() is not None
+            if has_plain:
+                return True
+            has_legacy = db.query(AppSetting).filter(AppSetting.key == 'super_password_hash').first() is not None
+            return has_legacy
+        finally:
+            db.close()
+
+    @staticmethod
+    def get_super_password_hash() -> Optional[str]:
+        """Compatibility getter: returns the stored super password (plaintext)."""
+        db = SessionLocal()
+        try:
+            record = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
+            return record.value if record else None
+        except Exception as e:
+            print(f"❌ Error fetching super password: {e}")
+            return None
+        finally:
+            db.close()
+
+    @staticmethod
+    def get_super_password_plain() -> Optional[str]:
+        """Fetch the stored super password plaintext from AppSetting, or None if not set."""
+        db = SessionLocal()
+        try:
+            record = db.query(AppSetting).filter(AppSetting.key == AuthService.SUPER_PASSWORD_KEY).first()
+            return record.value if record else None
+        except Exception as e:
+            print(f"❌ Error fetching super password plaintext: {e}")
+            return None
         finally:
             db.close()
 
