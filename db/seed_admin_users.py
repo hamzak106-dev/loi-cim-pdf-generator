@@ -19,20 +19,14 @@ def seed_admin_users():
     
     try:
         # Check if admin users already exist
-        existing_admins = db.query(User).filter(User.user_type == 'admin').count()
+        # existing_admins = db.query(User).filter(User.user_type == 'admin').count()
         
-        if existing_admins > 0:
-            print(f"ℹ️  {existing_admins} admin user(s) already exist. Skipping seed.")
-            return
+        # if existing_admins > 0:
+        #     print(f"ℹ️  {existing_admins} admin user(s) already exist. Skipping seed.")
+        #     return
         
         # Demo admin users
         admin_users = [
-            {
-                'name': 'John Admin',
-                'email': 'john.admin@example.com',
-                'password': 'admin123',  # Change this in production!
-                'user_type': 'admin'
-            },
             {
                 'name': 'superadmin',
                 'email': 'hello@benkelly.co',
