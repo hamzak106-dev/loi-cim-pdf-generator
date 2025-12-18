@@ -25,18 +25,63 @@ from googleapiclient.errors import HttpError
 templates = Jinja2Templates(directory="templates")
 router = APIRouter()
 
-# Session management (simple in-memory for demo - use proper session management in production)
-active_sessions = {}
+# Session management
+# Note: user access uses a signed cookie gate (`user_access`) below.
+# For admin, switch to a signed cookie (`admin_auth`) to avoid coupling to in-memory state
+# so admin sessions persist across app restarts and only end on explicit logout.
+active_sessions = {}  # kept for backward compatibility with any old code paths
 user_sessions = {}  # Deprecated for user access; kept for compatibility if needed
 user_passwords = {}  # Temporary storage for user passwords (user_id -> password) - for admin viewing
 super_password_plaintext: Optional[str] = None  # Temporary cache of last generated super password
 
-def get_current_admin(request: Request):
-    """Get current admin from session"""
-    session_id = request.cookies.get("admin_session")
-    if not session_id or session_id not in active_sessions:
+def _make_admin_token(user_id: int, email: str, name: str) -> str:
+    """Create a signed admin auth token stored in a cookie.
+    Format: data|sig, where data = "uid:<id>;em:<email>;nm:<name>"
+    """
+    data = f"uid:{user_id};em:{email};nm:{name}"
+    sig = _sign(data)
+    return f"{data}|{sig}"
+
+
+def _parse_admin_token(token: str) -> Optional[dict]:
+    """Verify and parse admin token; returns dict or None."""
+    if not token or "|" not in token:
         return None
-    return active_sessions[session_id]
+    data, sig = token.rsplit("|", 1)
+    expected = _sign(data)
+    if not hmac.compare_digest(sig, expected):
+        return None
+    # Parse key-value pairs
+    parts = {}
+    try:
+        for pair in data.split(";"):
+            k, v = pair.split(":", 1)
+            parts[k] = v
+        # minimal validation
+        uid = int(parts.get("uid", "0"))
+        if uid <= 0:
+            return None
+        return {
+            "user_id": uid,
+            "email": parts.get("em", ""),
+            "name": parts.get("nm", "")
+        }
+    except Exception:
+        return None
+
+
+def get_current_admin(request: Request):
+    """Get current admin from signed cookie."""
+    # Prefer new signed cookie `admin_auth`
+    token = request.cookies.get("admin_auth")
+    admin = _parse_admin_token(token) if token else None
+    if admin:
+        return admin
+    # Fallback to legacy in-memory session `admin_session` if present
+    session_id = request.cookies.get("admin_session")
+    if session_id and session_id in active_sessions:
+        return active_sessions[session_id]
+    return None
 
 def require_admin(request: Request):
     """Require admin authentication"""
@@ -1653,18 +1698,20 @@ async def admin_login(
             "error": "Invalid credentials or not an admin account"
         })
     
-    # Create session
-    import secrets
-    session_id = secrets.token_urlsafe(32)
-    active_sessions[session_id] = {
-        'user_id': user.id,
-        'email': user.email,
-        'name': user.name
-    }
-    
-    # Redirect to dashboard
+    # Issue signed admin cookie that persists until explicit logout
     response = RedirectResponse(url="/admin/dashboard", status_code=HTTP_302_FOUND)
-    response.set_cookie(key="admin_session", value=session_id, httponly=True)
+    token = _make_admin_token(user.id, user.email, user.name)
+    # 180 days
+    max_age = 180 * 24 * 60 * 60
+    response.set_cookie(
+        key="admin_auth",
+        value=token,
+        httponly=True,
+        max_age=max_age,
+        samesite="lax"
+    )
+    # Also clear legacy cookie if it exists
+    response.delete_cookie("admin_session")
     return response
 
 
@@ -1674,8 +1721,9 @@ async def admin_logout(request: Request):
     session_id = request.cookies.get("admin_session")
     if session_id in active_sessions:
         del active_sessions[session_id]
-    
     response = RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
+    # Clear both new and legacy cookies
+    response.delete_cookie("admin_auth")
     response.delete_cookie("admin_session")
     return response
 
