@@ -95,7 +95,10 @@ def _sign(value: str) -> str:
 
 def _make_access_cookie() -> str:
     val = "granted"
-    sig = _sign(val)
+    # Bind signature to current super password so that updating the password
+    # invalidates all existing user access cookies immediately.
+    current_pwd = auth_service.get_super_password_plain() or ""
+    sig = _sign(f"{val}:{current_pwd}")
     return f"{val}|{sig}"
 
 def _verify_access_cookie(token: str) -> bool:
@@ -103,7 +106,11 @@ def _verify_access_cookie(token: str) -> bool:
         val, sig = token.split("|", 1)
     except ValueError:
         return False
-    expected = _sign(val)
+    # Recompute signature using the current super password.
+    # If the password was changed after the cookie was issued, this will fail
+    # and force the user back to the access gate.
+    current_pwd = auth_service.get_super_password_plain() or ""
+    expected = _sign(f"{val}:{current_pwd}")
     return hmac.compare_digest(sig, expected) and val == "granted"
 
 def get_current_user(request: Request):
@@ -151,9 +158,16 @@ async def user_access(
             response = RedirectResponse(url="/", status_code=HTTP_302_FOUND)
             # Set signed, long-lived cookie so access persists across restarts
             token = _make_access_cookie()
-            # 30 days
-            max_age = 30 * 24 * 60 * 60
-            response.set_cookie(key="user_access", value=token, httponly=True, max_age=max_age)
+            # 1 day
+            max_age = 24 * 60 * 60
+            response.set_cookie(
+                key="user_access",
+                value=token,
+                httponly=True,
+                max_age=max_age,
+                samesite="lax",
+                secure=not settings.DEBUG
+            )
             return response
     except Exception:
         pass
@@ -267,7 +281,7 @@ async def business_form_page(request: Request):
     """LOI Questions form page - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     
     # Get user email from session to pre-fill the form
     user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
@@ -287,7 +301,7 @@ async def cim_form_page(request: Request):
     """CIM Questions form page - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     
     # Get user email and name from session to pre-fill the form
     user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
@@ -307,7 +321,7 @@ async def cim_training_form_page(request: Request):
     """CIM Training Questions form page - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     
     # Get user email and name from session to pre-fill the form
     user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
@@ -327,7 +341,7 @@ async def calendar_page(request: Request, form_type: Optional[str] = None, host:
     """Calendar page for scheduling calls - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     
     return templates.TemplateResponse("calendar.html", {
         "request": request,
@@ -1184,7 +1198,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
         # Ensure the submitted email matches the logged-in user's email
         current_user = get_current_user(request)
         if not current_user:
-            return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+            return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
         session_email = (current_user.get('email') if isinstance(current_user, dict) else getattr(current_user, 'email', ''))
         session_email = (session_email or '').strip().lower()
         # if form_data['email'] != session_email:
@@ -1637,7 +1651,7 @@ async def submit_loi_form(request: Request):
     """Submit LOI Questions form - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "LOI", "business_form.html")
 
 
@@ -1646,7 +1660,7 @@ async def submit_cim_form(request: Request):
     """Submit CIM Questions form - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "CIM", "cim_questions.html")
 
 
@@ -1655,7 +1669,7 @@ async def submit_cim_training_form(request: Request):
     """Submit CIM Training Questions form - requires authentication"""
     user = get_current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=HTTP_302_FOUND)
+        return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     return await handle_form_submission(request, "CIM_TRAINING", "cim_training.html")
 
 
