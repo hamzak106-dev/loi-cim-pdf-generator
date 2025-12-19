@@ -409,6 +409,7 @@
 document.addEventListener('DOMContentLoaded', function () {
   const errorAlert = document.querySelector('.alert.alert-danger');
   if (errorAlert) {
+    // Auto-hide error message after 5 seconds
     setTimeout(() => {
       try {
         if (window.bootstrap && bootstrap.Alert) {
@@ -426,7 +427,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // As a last resort just remove the element
         errorAlert.remove();
       }
-    }, 3000);
+    }, 5000);
   }
 });
 
@@ -970,11 +971,11 @@ document.addEventListener('DOMContentLoaded', function() {
   if (successAlert) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
-    // Optional: Auto-hide success message after 10 seconds
+    // Auto-hide success message after 5 seconds
     setTimeout(function() {
       const alert = bootstrap.Alert.getOrCreateInstance(successAlert);
       alert.close();
-    }, 10000);
+    }, 5000);
   }
 });
 </script>

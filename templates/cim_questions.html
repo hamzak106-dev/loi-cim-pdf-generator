@@ -1047,6 +1047,7 @@ async function handleUnifiedCalendarButton(button) {
               <!-- Schedule Live Call Dropdown -->
               <div class="mb-4">
                 <!-- <label for="cimCallSelect" class="form-label fw-semibold">Choose in which live call your CIM should be reviewed</label> -->
+                <div class="form-text mb-2"><strong>Note:</strong> All times listed below are in <strong>EST</strong>.</div>
                 <select class="form-select form-select-lg" id="cimCallSelect" name="cim_call_id" required>
                   <option value="">Choose in which live call your CIM should be reviewed</option>
                 </select>
@@ -1137,7 +1138,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const alert = bootstrap.Alert.getOrCreateInstance(successAlert);
         alert.close();
       }
-    }, 10000);
+    }, 5000);
   }
 });
 </script>
