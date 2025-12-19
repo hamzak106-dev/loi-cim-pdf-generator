@@ -622,6 +622,14 @@
 
 {% block scripts %}
 <script>
+// Prevent showing cached admin dashboard via back/forward navigation after logout
+window.addEventListener('pageshow', function (event) {
+  // If the page was restored from the BFCache, force a reload
+  if (event.persisted) {
+    window.location.reload();
+  }
+});
+
 function scheduleMeeting(formType, host) {
   if (formType === 'CIM Call' && !host) {
     // Show host selection modal for CIM Call
