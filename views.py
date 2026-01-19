@@ -1305,6 +1305,33 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                 "form_data": {k: form.get(k) for k in form.keys()}
             })
         
+        # Handle file uploads - encode as base64 for cross-dyno transfer
+        # IMPORTANT: This must happen BEFORE any early returns to ensure Celery task is triggered
+        files_data = []
+        files = form.getlist('files') if hasattr(form, 'getlist') else ([form.get('files')] if form.get('files') else [])
+        
+        for file in files:
+            if hasattr(file, 'filename') and file.filename:
+                try:
+                    content = await file.read()
+                    # Encode file content as base64 for transfer to worker dyno
+                    import base64
+                    encoded_content = base64.b64encode(content).decode('utf-8')
+                    
+                    files_data.append({
+                        'file_content': encoded_content,  # Base64 encoded content
+                        'filename': file.filename,
+                        'content_type': file.content_type or 'application/octet-stream'
+                    })
+                    print(f"📎 Prepared file for upload: {file.filename} ({len(content)} bytes)")
+                except Exception as e:
+                    print(f"Error reading file {file.filename}: {e}")
+        
+        # Trigger background processing - MUST happen before any early returns
+        print(f"🚀 Triggering Celery task for {form_type} submission {submission.id}")
+        process_submission_complete.delay(submission.id, files_data, form_type)
+        print(f"✅ Celery task triggered successfully")
+        
         # For LOI forms, create MeetingRegistration record and redirect to calendar
         if form_type == "LOI":
             loi_call_id = form_data.get('loi_call_id')
@@ -1411,8 +1438,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 db.close()
                                 return templates.TemplateResponse(template_name, {
                                     "request": request,
-                                    "success": f"✅ {form_type} form submitted successfully!",
-                                    "error": "Could not open Google Calendar - event time missing.",
+                                "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly.",
+                                "error": "Could not open Google Calendar - event time missing.",
                                     "form_data": {}
                                 })
                             
@@ -1439,7 +1466,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                             
                             return templates.TemplateResponse(template_name, {
                                 "request": request,
-                                "success": f"✅ {form_type} form submitted successfully! Opening Google Calendar...",
+                                "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly. Opening Google Calendar...",
                                 "form_data": {},
                                 "open_calendar": True,
                                 "event_data": event_data_dict
@@ -1561,8 +1588,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 db.close()
                                 return templates.TemplateResponse(template_name, {
                                     "request": request,
-                                    "success": f"✅ {form_type} form submitted successfully!",
-                                    "error": "Could not open Google Calendar - event time missing.",
+                                "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly.",
+                                "error": "Could not open Google Calendar - event time missing.",
                                     "form_data": {}
                                 })
                             
@@ -1589,7 +1616,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                             
                             return templates.TemplateResponse(template_name, {
                                 "request": request,
-                                "success": f"✅ {form_type} form submitted successfully! Opening Google Calendar...",
+                                "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly. Opening Google Calendar...",
                                 "form_data": {},
                                 "open_calendar": True,
                                 "event_data": event_data_dict
@@ -1605,31 +1632,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                     if 'db' in locals():
                         db.close()
         
-        # Handle file uploads - encode as base64 for cross-dyno transfer
-        files_data = []
-        files = form.getlist('files') if hasattr(form, 'getlist') else ([form.get('files')] if form.get('files') else [])
-        
-        for file in files:
-            if hasattr(file, 'filename') and file.filename:
-                try:
-                    content = await file.read()
-                    # Encode file content as base64 for transfer to worker dyno
-                    import base64
-                    encoded_content = base64.b64encode(content).decode('utf-8')
-                    
-                    files_data.append({
-                        'file_content': encoded_content,  # Base64 encoded content
-                        'filename': file.filename,
-                        'content_type': file.content_type or 'application/octet-stream'
-                    })
-                    print(f"📎 Prepared file for upload: {file.filename} ({len(content)} bytes)")
-                except Exception as e:
-                    print(f"Error reading file {file.filename}: {e}")
-        
-        # Trigger background processing
-        process_submission_complete.delay(submission.id, files_data, form_type)
-        
-        # Return success message on same page with cleared form (for non-LOI forms)
+        # Return success message on same page with cleared form (for non-LOI/CIM forms)
         return templates.TemplateResponse(template_name, {
             "request": request,
             "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly.",
