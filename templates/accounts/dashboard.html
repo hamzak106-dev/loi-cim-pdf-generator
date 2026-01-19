@@ -251,7 +251,7 @@
         </div>
         <div class="card-body">
           <div class="d-flex flex-wrap gap-3 align-items-center">
-            <button id="super-pass-btn" class="btn btn-outline-warning" onclick="generateSuperPassword(this)">
+            <button id="super-pass-btn" class="btn btn-outline-warning" onclick="confirmSuperPasswordChange()">
               <i class="bi bi-key"></i> Generate Password
             </button>
             <div class="d-flex align-items-center" style="min-width: 340px;">
@@ -982,6 +982,38 @@ function showSuperPasswordModal(password) {
   document.body.insertAdjacentHTML('beforeend', modal);
   const modalElement = new bootstrap.Modal(document.getElementById('superPasswordModal'));
   modalElement.show();
+}
+
+function confirmSuperPasswordChange() {
+  const modal = `
+    <div class="modal fade" id="confirmSuperPasswordModal" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background-color: rgba(5, 13, 30, 0.95); color: #fff;">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-question-circle"></i> Confirm Update</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            Are you sure you want to change the super password for everyone in the community?
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No</button>
+            <button type="button" class="btn btn-warning" id="confirm-super-pass-yes">Yes, update</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  const existing = document.getElementById('confirmSuperPasswordModal');
+  if (existing) existing.remove();
+  document.body.insertAdjacentHTML('beforeend', modal);
+  const el = document.getElementById('confirmSuperPasswordModal');
+  const modalInstance = new bootstrap.Modal(el);
+  el.querySelector('#confirm-super-pass-yes').addEventListener('click', () => {
+    modalInstance.hide();
+    const btn = document.getElementById('super-pass-btn');
+    if (btn) generateSuperPassword(btn);
+  });
+  modalInstance.show();
 }
 
 async function generateSuperPassword(btn) {
