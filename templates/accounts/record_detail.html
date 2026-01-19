@@ -195,7 +195,21 @@
             {% endif %}
           </div>
           
-         
+          <hr style="border-color: rgba(255, 255, 255, 0.2);">
+          <div class="detail-label">This Month Submissions</div>
+          <div class="detail-value">
+            <span class="badge bg-info text-dark me-2">LOI: {{ month_counts.LOI if month_counts else 0 }}</span>
+            <span class="badge bg-warning text-dark me-2">CIM: {{ month_counts.CIM if month_counts else 0 }}</span>
+            <span class="badge bg-primary">CIM Training: {{ month_counts.CIM_TRAINING if month_counts else 0 }}</span>
+          </div>
+
+          <div class="detail-label mt-3">All-Time Submissions</div>
+          <div class="detail-value">
+            <span class="badge bg-info text-dark me-2">LOI: {{ total_counts.LOI if total_counts else 0 }}</span>
+            <span class="badge bg-warning text-dark me-2">CIM: {{ total_counts.CIM if total_counts else 0 }}</span>
+            <span class="badge bg-primary">CIM Training: {{ total_counts.CIM_TRAINING if total_counts else 0 }}</span>
+          </div>
+          
           
           <div class="detail-label">Has Uploaded Files</div>
           <div class="detail-value">

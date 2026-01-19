@@ -3,41 +3,299 @@
 {% block title %}LOI Questions{% endblock %}
 
 {% block scripts %}
+<style>
+/* Event Detail Modal Styles */
+.event-modal {
+  display: none;
+  position: fixed;
+  z-index: 1050;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.event-modal.show {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.event-modal-content {
+  background-color: #fff;
+  margin: auto;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: modalSlideIn 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.event-modal-header {
+  background: linear-gradient(135deg, #0d3872 0%, #1a5a9e 100%);
+  color: #fff;
+  padding: 30px 35px 25px;
+  position: relative;
+  border-radius: 16px 16px 0 0;
+}
+
+.event-modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #fff;
+}
+
+.event-modal-subtitle {
+  font-size: 0.95rem;
+  opacity: 0.95;
+  margin: 0;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.8rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  line-height: 1;
+  padding: 0;
+}
+
+.event-modal-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+.event-modal-body {
+  padding: 30px 35px;
+  color: #333;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.event-detail-item {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.event-detail-icon {
+  font-size: 1.4rem;
+  margin-top: 2px;
+  min-width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.event-detail-content {
+  flex: 1;
+}
+
+.event-detail-label {
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 6px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.event-detail-value {
+  font-size: 0.95rem;
+  color: #333;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.event-detail-value a {
+  color: rgba(13, 56, 114, 0.9);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.event-detail-value a:hover {
+  text-decoration: underline;
+}
+
+.event-description {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.event-modal-footer {
+  padding: 25px 35px;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  background-color: #fafafa;
+}
+
+.btn-add-calendar {
+  background: linear-gradient(135deg, #0d3872 0%, #1a5a9e 100%);
+  color: #fff;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(13, 56, 114, 0.2);
+}
+
+.btn-add-calendar:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(13, 56, 114, 0.3);
+}
+
+.btn-add-calendar:active {
+  transform: translateY(0);
+}
+
+.btn-add-calendar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+</style>
 <script>
-// Fetch and display calendar events
+// Fetch and populate LOI calls dropdown
 document.addEventListener('DOMContentLoaded', function() {
   fetchCalendarEvents();
+  fetchLOICalls();
   
-  // Enable/disable Schedule Call button based on email input
-  const emailInput = document.getElementById('email');
-  const scheduleBtn = document.getElementById('scheduleCallBtn');
-  
-  if (emailInput && scheduleBtn) {
-    function updateScheduleButton() {
-      const email = emailInput.value.trim();
-      const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      
-      if (email && emailPattern.test(email)) {
-        scheduleBtn.style.opacity = '1';
-        scheduleBtn.style.cursor = 'pointer';
-        scheduleBtn.style.pointerEvents = 'auto';
-        scheduleBtn.parentElement.querySelector('small').style.display = 'none';
+  // Show event details modal if event_data is available after form submission
+  {% if open_calendar and event_data %}
+    try {
+      const eventData = {{ event_data | tojson }};
+      console.log('Event data received:', eventData);
+      if (eventData && eventData.start) {
+        // Show event details modal instead of opening Google Calendar directly
+        setTimeout(function() {
+          console.log('Showing event details modal with event:', eventData);
+          showEventDetailsModal(eventData);
+        }, 500);
       } else {
-        scheduleBtn.style.opacity = '0.6';
-        scheduleBtn.style.cursor = 'not-allowed';
-        scheduleBtn.style.pointerEvents = 'auto'; // Still allow click to show alert
-        scheduleBtn.parentElement.querySelector('small').style.display = 'block';
+        console.error('Invalid event data:', eventData);
       }
+    } catch (error) {
+      console.error('Error processing event data:', error);
+    }
+  {% endif %}
+});
+
+async function fetchLOICalls() {
+  const dropdown = document.getElementById('loiCallSelect');
+  const loadingEl = document.getElementById('loiCallsLoading');
+  const errorEl = document.getElementById('loiCallsError');
+  
+  if (!dropdown) return;
+  
+  try {
+    if (loadingEl) loadingEl.style.display = 'block';
+    if (errorEl) errorEl.style.display = 'none';
+    
+    // Clear existing options except the first one
+    while (dropdown.options.length > 1) {
+      dropdown.remove(1);
     }
     
-    // Check on page load
-    updateScheduleButton();
+    const calendarId = '{{ calendar_id }}' || 'primary';
+    const response = await fetch(`/api/calendar/events/loi-calls?calendar_id=${encodeURIComponent(calendarId)}`);
+    const data = await response.json();
     
-    // Check on input change
-    emailInput.addEventListener('input', updateScheduleButton);
-    emailInput.addEventListener('blur', updateScheduleButton);
+    if (loadingEl) loadingEl.style.display = 'none';
+    
+    if (!data.success || !data.calls || data.calls.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No LOI calls available';
+      option.disabled = true;
+      dropdown.appendChild(option);
+      if (errorEl) {
+        let errorMsg = 'No LOI calls found. Please contact support.';
+        if (data.debug) {
+          errorMsg += ` (Found ${data.debug.total_events} total events, ${data.debug.db_loi_records} LOI records in database)`;
+        }
+        errorEl.textContent = errorMsg;
+        errorEl.style.display = 'block';
+      }
+      console.error('No LOI calls found:', data);
+      return;
+    }
+    
+    // Populate dropdown with calls
+    data.calls.forEach(call => {
+      const option = document.createElement('option');
+      option.value = call.id;
+      
+      // Format: "Event Name - Date/Time (Y seats available)"
+      // If full: disable the option
+      const seatsText = call.is_full ? '0 reviews remaining' : `${call.available_seats} review${call.available_seats !== 1 ? 's' : ''} remaining`;
+      
+      option.textContent = `${call.name} - ${call.time} (${seatsText})`;
+      
+      // Disable if full (10 registrations)
+      if (call.is_full) {
+        option.disabled = true;
+        option.textContent += ' - FULL';
+      }
+      
+      dropdown.appendChild(option);
+    });
+    
+  } catch (error) {
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (errorEl) {
+      errorEl.textContent = 'Failed to load LOI calls. Please try again later.';
+      errorEl.style.display = 'block';
+    }
+    console.error('Error fetching LOI calls:', error);
   }
-});
+}
 
 async function fetchCalendarEvents() {
   const loadingEl = document.getElementById('eventsLoading');
@@ -181,30 +439,580 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Handle Schedule Call button click - check email first
-function handleScheduleCall(event) {
-  event.preventDefault();
-  const emailInput = document.getElementById('email');
-  const email = emailInput ? emailInput.value.trim() : '';
-  
-  if (!email) {
-    alert('Please enter your email address first');
-    emailInput.focus();
+// Validate form before submission
+function validateForm() {
+  const loiCallSelect = document.getElementById('loiCallSelect');
+  if (loiCallSelect && !loiCallSelect.value) {
+    alert('Please choose a live call for your LOI');
+    loiCallSelect.focus();
     return false;
   }
-  
-  // Validate email format
-  const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (!emailPattern.test(email)) {
-    alert('Please enter a valid email address');
-    emailInput.focus();
-    return false;
-  }
-  
-  // Redirect to calendar page with email parameter
-  window.location.href = `/calendar?form_type=LOI Call&host=Evan&email=${encodeURIComponent(email)}`;
-  return false;
+  return true;
 }
+
+// Function to generate Google Calendar URL and open it (same as calendar.html)
+function addToGoogleCalendar(eventData) {
+  console.log('addToGoogleCalendar called with:', eventData);
+  try {
+    // Extract event details
+    const title = eventData.summary || 'Untitled Event';
+    console.log('Event title:', title);
+    
+    // Parse start and end times
+    let startTime, endTime;
+    if (typeof eventData.start === 'string') {
+      startTime = eventData.start;
+      endTime = typeof eventData.end === 'string' ? eventData.end : (eventData.end?.dateTime || eventData.end?.date);
+    } else {
+      startTime = eventData.start?.dateTime || eventData.start?.date;
+      endTime = eventData.end?.dateTime || eventData.end?.date;
+    }
+    
+    console.log('Parsed times - start:', startTime, 'end:', endTime);
+    console.log('Event timezone:', eventData.timeZone);
+    
+    if (!startTime) {
+      console.error('Event start time is missing');
+      alert('Event start time is missing. Please check the event details.');
+      return;
+    }
+    
+    // Get event timezone (default to America/New_York for LOI calls)
+    // For LOI calls, always use Eastern Time
+    let eventTimezone = eventData.timeZone || 'America/New_York';
+    
+    // Force Eastern Time for LOI calls
+    const isLOICall = eventData.summary && (eventData.summary.toUpperCase().includes('LOI') || eventData.summary.toUpperCase().includes('LOI CALL'));
+    if (isLOICall) {
+      eventTimezone = 'America/New_York';
+    }
+    
+    console.log('Google Calendar timezone:', eventTimezone, 'for event:', eventData.summary);
+    
+    // Convert dates to Google Calendar format
+    // Google Calendar URL format: dates should be in LOCAL time (not UTC) with ctz parameter for timezone
+    // Format: YYYYMMDDTHHMMSS (local time in the event's timezone)
+    const formatDateForGoogleCalendar = (dateString, isAllDay = false) => {
+      if (isAllDay || (!dateString.includes('T') && !dateString.includes(' '))) {
+        // All-day event: just use the date part
+        const date = new Date(dateString);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        return `${year}${month}${day}`;
+      }
+      
+      // Parse the date string to extract components
+      const match = dateString.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+      if (!match) {
+        throw new Error('Invalid date format: ' + dateString);
+      }
+      const [, year, month, day, hour, minute, second] = match;
+      
+      // For Google Calendar URL, we use the LOCAL time in the event's timezone
+      // NOT UTC. The ctz parameter will tell Google Calendar what timezone this is.
+      // So if the event is 9:00 AM Eastern Time, we use 09:00:00, not the UTC equivalent
+      return `${year}${month}${day}T${hour}${minute}${second}`;
+    };
+    
+    // Check if event is all-day
+    const isAllDay = (!startTime.includes('T') && !startTime.includes(' ')) || 
+                     (eventData.start?.date && !eventData.start?.dateTime);
+    
+    const startFormatted = formatDateForGoogleCalendar(startTime, isAllDay);
+    const endFormatted = endTime ? formatDateForGoogleCalendar(endTime, isAllDay) : startFormatted;
+    
+    // Build description - include original description and Meet link if available
+    let description = eventData.description || '';
+    if (eventData.hangoutLink) {
+      if (description) {
+        description += '\n\n';
+      }
+      description += `Join Meeting: ${eventData.hangoutLink}`;
+    }
+    
+    // Build location
+    const location = eventData.location || '';
+    
+    // Build Google Calendar URL
+    // According to Google Calendar docs, use local time in dates parameter and ctz for timezone
+    const baseUrl = 'https://www.google.com/calendar/render';
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: title,
+      dates: `${startFormatted}/${endFormatted}`,
+      details: description,
+      sf: 'true',
+      output: 'xml'
+    });
+    
+    // Add timezone parameter (ctz) - this tells Google Calendar what timezone the dates are in
+    // Convert timezone name to URL format (America/New_York -> America/New_York)
+    params.append('ctz', eventTimezone);
+    
+    // Add location if available
+    if (location) {
+      params.append('location', location);
+    }
+    
+    console.log('Google Calendar URL params:', {
+      dates: `${startFormatted}/${endFormatted}`,
+      ctz: eventTimezone,
+      startTime: startTime,
+      endTime: endTime
+    });
+    
+    const calendarUrl = `${baseUrl}?${params.toString()}`;
+    
+    console.log('Google Calendar URL:', calendarUrl);
+    
+    // Open Google Calendar in a new tab
+    try {
+      window.open(calendarUrl, '_blank', 'noopener,noreferrer');
+      console.log('Google Calendar opened successfully');
+    } catch (error) {
+      console.error('Error opening calendar:', error);
+      alert('Error opening Google Calendar. Please try again.');
+    }
+    
+  } catch (error) {
+    console.error('Error generating Google Calendar URL:', error);
+    alert('Error opening Google Calendar: ' + error.message);
+  }
+}
+
+// Show event details modal (simplified version from calendar.html)
+// Get timezone full name (e.g., "Eastern Time" instead of "America/New_York")
+function getTimezoneFullName(timezoneName, date) {
+  // First, try to map timezone names directly to full names
+  const timezoneMap = {
+    'Asia/Karachi': 'Pakistan Standard Time',
+    'Asia/Kolkata': 'India Standard Time',
+    'Asia/Dubai': 'Gulf Standard Time',
+    'Asia/Singapore': 'Singapore Standard Time',
+    'Asia/Tokyo': 'Japan Standard Time',
+    'Asia/Shanghai': 'China Standard Time',
+    'Asia/Hong_Kong': 'Hong Kong Time',
+    'Asia/Dhaka': 'Bangladesh Standard Time',
+    'America/New_York': 'Eastern Time',
+    'America/Chicago': 'Central Time',
+    'America/Denver': 'Mountain Time',
+    'America/Los_Angeles': 'Pacific Time',
+    'America/Toronto': 'Eastern Time',
+    'Europe/London': 'Greenwich Mean Time',
+    'Europe/Paris': 'Central European Time',
+    'Europe/Moscow': 'Moscow Standard Time',
+    'Europe/Berlin': 'Central European Time',
+    'Australia/Sydney': 'Australian Eastern Standard Time',
+    'Australia/Melbourne': 'Australian Eastern Standard Time',
+  };
+  
+  if (timezoneName && timezoneMap[timezoneName]) {
+    return timezoneMap[timezoneName];
+  }
+  
+  // If timezone name not found, try to get full name from Intl API
+  if (timezoneName && date) {
+    try {
+      // Try to get long timezone name
+      const formatter = new Intl.DateTimeFormat('en-US', { 
+        timeZone: timezoneName,
+        timeZoneName: 'long' 
+      });
+      const parts = formatter.formatToParts(date);
+      const tzPart = parts.find(part => part.type === 'timeZoneName');
+      if (tzPart) {
+        let tzName = tzPart.value;
+        // If it's GMT+5 format, convert to full name
+        if (tzName.startsWith('GMT')) {
+          // Extract offset (e.g., GMT+5, GMT+05, GMT+5:30)
+          const offsetMatch = tzName.match(/GMT([+-])(\d{1,2})(:?(\d{2}))?/);
+          if (offsetMatch) {
+            const sign = offsetMatch[1];
+            const hours = parseInt(offsetMatch[2]);
+            const minutes = offsetMatch[4] ? parseInt(offsetMatch[4]) : 0;
+            const offsetKey = `${sign}${hours}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+            const offsetKeyAlt = `${sign}${String(hours).padStart(2, '0')}${minutes > 0 ? ':' + String(minutes).padStart(2, '0') : ''}`;
+            
+            // Map offsets to full timezone names
+            const offsetToTz = {
+              '+5': 'Pakistan Standard Time', '+05': 'Pakistan Standard Time',
+              '+5:30': 'India Standard Time', '+05:30': 'India Standard Time',
+              '+6': 'Bangladesh Standard Time', '+06': 'Bangladesh Standard Time',
+              '+8': 'China Standard Time', '+08': 'China Standard Time',
+              '+9': 'Japan Standard Time', '+09': 'Japan Standard Time',
+              '+10': 'Australian Eastern Standard Time', '+11': 'Australian Eastern Daylight Time',
+              '-5': 'Eastern Time', '-05': 'Eastern Time',
+              '-6': 'Central Time', '-06': 'Central Time',
+              '-7': 'Mountain Time', '-07': 'Mountain Time',
+              '-8': 'Pacific Time', '-08': 'Pacific Time',
+              '-9': 'Alaska Standard Time', '-09': 'Alaska Standard Time',
+              '-10': 'Hawaii Standard Time',
+              '+0': 'Greenwich Mean Time', '+00': 'Greenwich Mean Time',
+              '+1': 'Central European Time', '+01': 'Central European Time',
+              '+2': 'Eastern European Time', '+02': 'Eastern European Time',
+              '+3': 'Moscow Standard Time', '+03': 'Moscow Standard Time',
+              '+4': 'Gulf Standard Time', '+04': 'Gulf Standard Time',
+            };
+            
+            return offsetToTz[offsetKey] || offsetToTz[offsetKeyAlt] || tzName;
+          }
+          // If no match, return as is
+          return tzName;
+        }
+        // If it's already a full name, return it
+        return tzName;
+      }
+    } catch (e) {
+      console.error('Error getting timezone full name:', e);
+    }
+  }
+  
+  // Final fallback: format timezone name nicely
+  if (timezoneName) {
+    const parts = timezoneName.split('/');
+    if (parts.length > 1) {
+      // Convert "America/New_York" to "New York Time" or similar
+      const region = parts[0];
+      const city = parts[1].replace(/_/g, ' ');
+      
+      // Special cases
+      if (region === 'America') {
+        if (city.includes('New York') || city.includes('Toronto')) return 'Eastern Time';
+        if (city.includes('Chicago')) return 'Central Time';
+        if (city.includes('Denver')) return 'Mountain Time';
+        if (city.includes('Los Angeles')) return 'Pacific Time';
+      }
+      
+      return city + ' Time';
+    }
+    return timezoneName;
+  }
+  
+  return '';
+}
+
+function showEventDetailsModal(event) {
+  // Create modal if it doesn't exist
+  let modal = document.getElementById('eventDetailModal');
+  if (!modal) {
+    const modalHtml = `
+      <div id="eventDetailModal" class="event-modal bg-dark">
+        <div class="event-modal-content">
+          <div class="event-modal-header">
+            <button class="event-modal-close" onclick="closeEventModal()">&times;</button>
+            <h2 class="event-modal-title" id="modalEventTitle"></h2>
+            <p class="event-modal-subtitle" id="modalEventSubtitle"></p>
+          </div>
+          <div class="event-modal-body" id="modalEventBody"></div>
+          <div class="event-modal-footer" id="modalEventFooter"></div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    modal = document.getElementById('eventDetailModal');
+  }
+  
+  const titleEl = document.getElementById('modalEventTitle');
+  const subtitleEl = document.getElementById('modalEventSubtitle');
+  const bodyEl = document.getElementById('modalEventBody');
+  const footerEl = document.getElementById('modalEventFooter');
+  
+  // Parse event times
+  let startTime, endTime;
+  if (typeof event.start === 'string') {
+    startTime = event.start;
+    endTime = typeof event.end === 'string' ? event.end : (event.end?.dateTime || event.end?.date);
+  } else {
+    startTime = event.start?.dateTime || event.start?.date;
+    endTime = event.end?.dateTime || event.end?.date;
+  }
+  
+  const startDate = startTime ? new Date(startTime) : null;
+  const endDate = endTime ? new Date(endTime) : null;
+  
+  // Get timezone from event or default to America/New_York for LOI calls
+  // For LOI calls, always use America/New_York (Eastern Time)
+  let eventTimezone = 'America/New_York'; // Default for LOI calls
+  
+  // Check if event has explicit timezone (from backend)
+  if (event.timeZone) {
+    eventTimezone = event.timeZone;
+  } else if (event.start && typeof event.start === 'object' && event.start.timeZone) {
+    eventTimezone = event.start.timeZone;
+  } else if (event.end && typeof event.end === 'object' && event.end.timeZone) {
+    eventTimezone = event.end.timeZone;
+  }
+  
+  // For LOI calls, always force to Eastern Time
+  // Check if this is an LOI call by checking the summary or other indicators
+  const isLOICall = event.summary && (event.summary.toUpperCase().includes('LOI') || event.summary.toUpperCase().includes('LOI CALL'));
+  if (isLOICall) {
+    eventTimezone = 'America/New_York';
+  }
+  
+  console.log('Event timezone determined:', eventTimezone, 'for event:', event.summary);
+  
+  // Format date and time using the event's timezone
+  let dateTimeStr = '';
+  if (startDate) {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    // Format time using the event's timezone
+    const timeOptions = { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true,
+      timeZone: eventTimezone
+    };
+    
+    const startTimeOnly = startDate.toLocaleTimeString('en-US', timeOptions);
+    const endTimeOnly = endDate ? endDate.toLocaleTimeString('en-US', timeOptions) : '';
+    
+    // Get timezone full name
+    let timezoneName = getTimezoneFullName(eventTimezone, startDate);
+    
+    // Get date components using the event's timezone
+    const dateOptions = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric', 
+      weekday: 'long',
+      timeZone: eventTimezone
+    };
+    
+    const startDateStr = startDate.toLocaleDateString('en-US', dateOptions);
+    
+    // Parse the formatted date string to extract components
+    const dateParts = startDateStr.split(', ');
+    const dayName = dateParts[0];
+    const monthDay = dateParts[1].split(' ');
+    const monthName = monthDay[0];
+    const day = parseInt(monthDay[1]);
+    
+    function getOrdinalSuffix(day) {
+      if (day > 3 && day < 21) return 'th';
+      switch (day % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    }
+    
+    // Format: "Sunday, December 28th @ 7:00 PM - 8:00 PM Eastern Time"
+    dateTimeStr = `${dayName}, ${monthName} ${day}${getOrdinalSuffix(day)} @ ${startTimeOnly}${endTimeOnly ? ' - ' + endTimeOnly : ''} ${timezoneName || ''}`.trim();
+  }
+  
+  // Set title and subtitle
+  const eventTitle = (event.summary || 'Untitled Event').toUpperCase();
+  titleEl.textContent = eventTitle;
+  subtitleEl.innerHTML = '<span>ACQUISITION ACE ACADEMY</span> <span style="opacity: 0.9;">WITH EVAN</span>';
+  
+  // Build body content
+  let bodyHtml = '';
+  
+  // Date and Time
+  if (dateTimeStr) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📅</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Date & Time</div>
+          <div class="event-detail-value">${escapeHtml(dateTimeStr)}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Meeting Link
+  if (event.hangoutLink) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📹</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Meeting Link</div>
+          <div class="event-detail-value">
+            <a href="${escapeHtml(event.hangoutLink)}" target="_blank">${escapeHtml(event.hangoutLink)}</a>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (event.location) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📍</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Location</div>
+          <div class="event-detail-value">${escapeHtml(event.location)}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Description
+  if (event.description) {
+    bodyHtml += `
+      <div class="event-detail-item">
+        <div class="event-detail-icon">📝</div>
+        <div class="event-detail-content">
+          <div class="event-detail-label">Description</div>
+          <div class="event-detail-value event-description">${escapeHtml(event.description)}</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  bodyEl.innerHTML = bodyHtml;
+  
+  // Build footer with button
+  const calendarId = '{{ calendar_id }}' || 'primary';
+  const eventJson = JSON.stringify(event).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  
+  let footerHtml = `<div id="calendarButtonContainer" style="min-height: 50px; display: flex; align-items: center; justify-content: center;">
+    <div class="spinner-border spinner-border-sm me-2" role="status" style="width: 1.5rem; height: 1.5rem; border-width: 0.2rem;">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <span style="color: #666;">Checking availability...</span>
+  </div>`;
+  footerHtml += `<div id="registrationError" class="mt-2" style="font-size: 0.9rem; color: #d32f2f; display: none; min-height: 20px;"></div>`;
+  footerHtml += `<div id="registrationFullMessage" class="mt-2" style="font-size: 0.95rem; color: #d32f2f; font-weight: 600; display: none;">⚠️ No slots available. Maximum 10 registrations reached.</div>`;
+  
+  footerEl.innerHTML = footerHtml;
+  
+  // Check registration status and update button
+  checkRegistrationStatus(event.id, eventJson, calendarId);
+  
+  // Show modal
+  modal.classList.add('show');
+  
+  // Close on background click
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      closeEventModal();
+    }
+  });
+}
+
+function closeEventModal() {
+  const modal = document.getElementById('eventDetailModal');
+  if (modal) {
+    modal.classList.remove('show');
+  }
+}
+
+// Check registration status for an event and show appropriate button
+async function checkRegistrationStatus(eventId, eventJson, calendarId) {
+  try {
+    // Get user email from the form
+    const emailInput = document.getElementById('email');
+    const userEmail = emailInput ? emailInput.value.trim() : '';
+    
+    // Build URL with email parameter if available
+    let url = `/api/calendar/events/${encodeURIComponent(eventId)}/registration-count`;
+    if (userEmail) {
+      url += `?email=${encodeURIComponent(userEmail)}`;
+    }
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    const buttonContainer = document.getElementById('calendarButtonContainer');
+    const fullMessageEl = document.getElementById('registrationFullMessage');
+    
+    if (data.success) {
+      if (data.is_registered) {
+        // User is already registered - disable button and show "Already Registered"
+        if (buttonContainer) {
+          buttonContainer.innerHTML = `<button class="btn-add-calendar" disabled style="opacity: 0.6; cursor: not-allowed;">✓ Already Registered</button>`;
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'none';
+        }
+      } else if (data.is_full) {
+        // Event is full - show "Add to Google Calendar" button only
+        if (buttonContainer) {
+          buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Google Calendar</button>`;
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'block';
+        }
+      } else {
+        // Event has slots and user is not registered - show button that opens Google Calendar
+        if (buttonContainer) {
+          buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Calendar</button>`;
+        }
+        if (fullMessageEl) {
+          fullMessageEl.style.display = 'none';
+        }
+      }
+    } else {
+      // On error, show button that opens Google Calendar
+      if (buttonContainer && eventJson && calendarId) {
+        buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Google Calendar</button>`;
+      }
+    }
+  } catch (error) {
+    console.error('Error checking registration status:', error);
+    const buttonContainer = document.getElementById('calendarButtonContainer');
+    if (buttonContainer && eventJson && calendarId) {
+      buttonContainer.innerHTML = `<button class="btn-add-calendar" data-event-data='${eventJson}' data-calendar-id="${calendarId}" onclick="handleUnifiedCalendarButton(this); return false;">📅 Add to Google Calendar</button>`;
+    }
+  }
+}
+
+// Unified handler for calendar button - opens Google Calendar
+async function handleUnifiedCalendarButton(button) {
+  const eventJson = button.getAttribute('data-event-data');
+  const calendarId = button.getAttribute('data-calendar-id');
+  
+  if (!eventJson) {
+    alert('Event data not found');
+    return;
+  }
+  
+  const originalText = button.innerHTML;
+  const errorEl = document.getElementById('registrationError');
+  
+  try {
+    const eventData = JSON.parse(eventJson.replace(/&quot;/g, '"').replace(/&#39;/g, "'"));
+    
+    // Show loading state
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" style="width: 1rem; height: 1rem; border-width: 0.15rem;"></span>Opening...';
+    
+    // Clear previous errors
+    if (errorEl) {
+      errorEl.style.display = 'none';
+      errorEl.innerHTML = '';
+    }
+    
+    // Open Google Calendar directly (user already registered via form submission)
+    addToGoogleCalendar(eventData, button);
+    
+    // Show success feedback
+    button.innerHTML = '✓ Opening Calendar...';
+    button.style.background = 'linear-gradient(135deg, rgba(25, 135, 84, 0.9) 0%, rgba(40, 167, 69, 0.9) 100%)';
+    
+    // Reset button after 2 seconds
+    setTimeout(() => {
+      button.disabled = false;
+      button.innerHTML = originalText;
+      button.style.background = '';
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Error handling calendar button:', error);
+    if (errorEl) {
+      errorEl.style.display = 'block';
+      errorEl.innerHTML = '<span style="color: #d32f2f; font-weight: 600;">⚠️ ' + escapeHtml(error.message || 'An error occurred') + '</span>';
+    }
+    button.disabled = false;
+    button.innerHTML = originalText;
+  }
+}
+
 </script>
 {% endblock %}
 
@@ -234,7 +1042,7 @@ function handleScheduleCall(event) {
             {% endif %}
 
 
-            <form method="POST" action="/submit-business" enctype="multipart/form-data">
+            <form method="POST" action="/submit-business" enctype="multipart/form-data" onsubmit="return validateForm();">
               
               <!-- Personal Information Section -->
               <div class="mb-5">
@@ -242,11 +1050,11 @@ function handleScheduleCall(event) {
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label for="full_name" class="form-label fw-semibold">Full Name</label>
-                    <input type="text" class="form-control form-control-lg" id="full_name" name="full_name" required value="{{ form_data.full_name if form_data else '' }}">
+                    <input type="text" class="form-control form-control-lg" id="full_name" name="full_name" required value="{{ form_data.full_name if form_data else (user_name if user_name else '') }}">
                   </div>
                   <div class="col-md-6">
                     <label for="email" class="form-label fw-semibold">Email</label>
-                    <input type="email" class="form-control form-control-lg" id="email" name="email" required value="{{ form_data.email if form_data else '' }}">
+                    <input type="email" class="form-control form-control-lg" id="email" name="email" required value="{{ form_data.email if form_data else (user_email if user_email else '') }}">
                   </div>
                 </div>
               </div>
@@ -392,12 +1200,18 @@ function handleScheduleCall(event) {
                 </div>
               </div>
 
-              <!-- Schedule Live Call Button -->
+              <!-- Schedule Live Call Dropdown -->
               <div class="mb-4">
-                <a href="#" class="btn btn-primary rounded-pill btn-lg px-5 w-100" id="scheduleCallBtn" onclick="handleScheduleCall(event)" style="pointer-events: auto; opacity: 0.6; cursor: not-allowed;">
-                  📅 Schedule a Live Call
-                </a>
-                <small class="text-muted d-block mt-2">Please enter your email above to schedule a call</small>
+                <!-- <label for="loiCallSelect" class="form-label fw-semibold">Choose in which live call your LOI should be reviewed</label> -->
+                <div class="form-text mb-2"><strong>Note:</strong> All times listed below are in <strong>EST</strong>.</div>
+                <select class="form-select form-select-lg" id="loiCallSelect" name="loi_call_id" required>
+                  <option value="">Select the live call where your LOI will be reviewed</option></option>
+                </select>
+                <div id="loiCallsLoading" class="text-muted mt-2" style="display: none;">
+                  <small>Loading available calls...</small>
+                </div>
+                <div id="loiCallsError" class="text-danger mt-2" style="display: none;"></div>
+                <div class="form-text mt-2">Please select one of the available LOI calls to schedule your submission</div>
               </div>
 
 

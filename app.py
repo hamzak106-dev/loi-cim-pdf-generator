@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from config import settings
 from contextlib import asynccontextmanager
 
@@ -50,6 +51,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security: prevent caching of admin pages to avoid back-button access after logout
+async def _no_cache_middleware(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    # Apply no-cache headers to admin pages and other sensitive HTML endpoints
+    if path.startswith("/admin"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+app.add_middleware(BaseHTTPMiddleware, dispatch=_no_cache_middleware)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")

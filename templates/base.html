@@ -73,6 +73,13 @@
             color: rgba(255, 255, 255, 0.5);
         }
         
+        /* Keep disabled email display field background consistent with theme */
+        #email_display.form-control:disabled {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            opacity: 1; /* ensure full opacity like enabled inputs */
+            color: #fff;
+        }
+        
         .input-group-text {
             background-color: rgba(13, 56, 114, 0.6);
             border: 1px solid rgba(255, 255, 255, 0.2);

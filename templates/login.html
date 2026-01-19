@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Access - Business Acquisition Services{% endblock %}
+
+{% block content %}
+<div class="container-fluid min-vh-100 d-flex justify-content-center align-items-center">
+  <div class="col-lg-4 col-md-6 col-sm-8" style="max-width: 450px;">
+    <div class="card shadow-lg">
+      <div class="card-header text-center py-4">
+        <h3 class="mb-0">Access Required</h3>
+        <p class="text-muted mb-0 mt-2">Enter the password to continue.</p>
+      </div>
+      
+      <div class="card-body p-4">
+        {% if error %}
+        <div id="login-error" class="alert alert-danger" role="alert">
+          {{ error }}
+        </div>
+        <script>
+          // Hide the invalid password message after 5 seconds
+          setTimeout(function () {
+            var el = document.getElementById('login-error');
+            if (el) {
+              el.style.display = 'none';
+            }
+          }, 5000);
+        </script>
+        {% endif %}
+        
+        <form method="POST" action="/access">
+          
+          <div class="mb-4">
+            <label for="password" class="form-label fw-semibold">Password</label>
+            <input 
+              type="password" 
+              class="form-control form-control-lg" 
+              id="password" 
+              name="password" 
+              required
+              autofocus
+              placeholder="Enter access password"
+            >
+            <div class="form-text text-muted">Provided by your admin.</div>
+          </div>
+          
+          <div class="d-grid gap-2 mt-4">
+            <button type="submit" class="btn btn-primary btn-lg">Continue</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
