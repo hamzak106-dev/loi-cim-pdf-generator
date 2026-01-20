@@ -181,8 +181,23 @@ class EmailService:
                     client_msg['To'] = settings.CLIENT_TO_EMAIL
                     client_msg['Subject'] = f"[Client Copy] {msg['Subject']}"
                     
-                    # Use the same body as the user email
-                    client_msg.attach(MIMEText(body, 'plain'))
+                    # Build client-specific email body
+                    form_label = form_type
+                    if form_type == "CIM_TRAINING":
+                        form_label = "CIM Training"
+                    elif form_type == "CIM":
+                        form_label = "CIM"
+                    else:
+                        form_label = "LOI"
+                    
+                    client_body = f"""Hey {submission.full_name},
+
+Thanks for filling this out the {form_label} generator. You find the generated PDF attached below.
+
+Best Regards,
+Your Ace Team"""
+                    
+                    client_msg.attach(MIMEText(client_body, 'plain'))
                     
                     # Attach PDF if it exists
                     if os.path.exists(pdf_path):
