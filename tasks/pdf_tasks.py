@@ -46,10 +46,22 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
         print(f"🚀 Starting complete processing for {form_type} submission {submission_id}")
         
         # Step 1: Generate PDF
-        pdf_path = pdf_service.generate_pdf(submission, form_type)
-        submission.pdf_generated = True
-        db.commit()
-        print(f"✅ PDF generated: {pdf_path}")
+        pdf_generated = False
+        pdf_path = None
+        pdf_error = None
+        try:
+            pdf_path = pdf_service.generate_pdf(submission, form_type)
+            submission.pdf_generated = True
+            db.commit()
+            pdf_generated = True
+            print(f"✅ PDF generated: {pdf_path}")
+        except Exception as e:
+            pdf_error = str(e)
+            print(f"❌ PDF generation failed: {e}")
+            import traceback
+            traceback.print_exc()
+            submission.pdf_generated = False
+            db.commit()
         
         # Step 2: Upload user files to Google Drive
         uploaded_file_url = None
@@ -106,7 +118,7 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                 import traceback
                 traceback.print_exc()
         
-        # Step 3: Upload PDF to Google Drive
+        # Step 3: Upload PDF to Google Drive (only if PDF was generated)
         drive_url = None
         if form_type == "CIM" or form_type == "CIM_TRAINING":
             file_prefix = "cim_overview" if form_type == "CIM" else "cim_training_overview"
@@ -114,46 +126,54 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
             file_prefix = "loi_overview"
         drive_file_name = f"{file_prefix}_{submission.full_name.replace(' ', '_')}_{submission.id}.pdf"
         
-        try:
-            print(f"☁️ Uploading PDF to Google Drive...")
-            print(f"📂 Folder ID: {settings.GOOGLE_DRIVE_FOLDER_ID or 'Root folder'}")
-            
-            drive_uploader = create_drive_uploader(
-                folder_id=settings.GOOGLE_DRIVE_FOLDER_ID
-            )
-            
-            upload_result = drive_uploader.upload_pdf(pdf_path, drive_file_name)
-            drive_url = upload_result['shareable_url']
-            
-            submission.file_urls = drive_url
-            db.commit()
-            
-            print(f"✅ PDF uploaded to Google Drive")
-            print(f"📎 Drive URL: {drive_url}")
-            
-        except FileNotFoundError as e:
-            print(f"❌ Service account file not found: {e}")
-            print(f"⚠️ Skipping Google Drive upload")
-        except Exception as e:
-            print(f"❌ Google Drive upload failed: {e}")
-            import traceback
-            traceback.print_exc()
-            print(f"⚠️ Continuing without Drive upload")
+        if pdf_generated and pdf_path:
+            try:
+                print(f"☁️ Uploading PDF to Google Drive...")
+                print(f"📂 Folder ID: {settings.GOOGLE_DRIVE_FOLDER_ID or 'Root folder'}")
+                
+                drive_uploader = create_drive_uploader(
+                    folder_id=settings.GOOGLE_DRIVE_FOLDER_ID
+                )
+                
+                upload_result = drive_uploader.upload_pdf(pdf_path, drive_file_name)
+                drive_url = upload_result['shareable_url']
+                
+                submission.file_urls = drive_url
+                db.commit()
+                
+                print(f"✅ PDF uploaded to Google Drive")
+                print(f"📎 Drive URL: {drive_url}")
+                
+            except FileNotFoundError as e:
+                print(f"❌ Service account file not found: {e}")
+                print(f"⚠️ Skipping Google Drive upload")
+            except Exception as e:
+                print(f"❌ Google Drive upload failed: {e}")
+                import traceback
+                traceback.print_exc()
+                print(f"⚠️ Continuing without Drive upload")
         
-        # Step 4: Send confirmation email
-        print(f"📧 Sending email to {submission.email}...")
+        # Step 4: Send confirmation email (only if PDF was generated)
         email_sent = False
-        try:
-            email_sent = email_service.send_confirmation_email_with_pdf(submission, pdf_path, form_type)
-            if email_sent:
-                print("✅ Email sent successfully!")
-            else:
-                print("⚠️ Email sending returned False")
-        except Exception as e:
-            print(f"❌ Failed to send email: {e}")
-            import traceback
-            traceback.print_exc()
-            email_sent = False
+        email_error = None
+        if pdf_generated and pdf_path:
+            print(f"📧 Sending email to {submission.email}...")
+            try:
+                email_sent = email_service.send_confirmation_email_with_pdf(submission, pdf_path, form_type)
+                if email_sent:
+                    print("✅ Email sent successfully!")
+                else:
+                    print("⚠️ Email sending returned False")
+                    email_error = "Email sending returned False"
+            except Exception as e:
+                print(f"❌ Failed to send email: {e}")
+                import traceback
+                traceback.print_exc()
+                email_sent = False
+                email_error = str(e)
+        else:
+            print(f"⚠️ Skipping email send - PDF generation failed")
+            email_error = "PDF generation failed"
         
         submission.email_sent = email_sent
         db.commit()
@@ -171,28 +191,35 @@ def process_submission_complete(self, submission_id: int, files_data: list = Non
                     channel=settings.SLACK_CHANNEL
                 )
                 
-                submission_data = {
-                    'full_name': submission.full_name,
-                    'email': submission.email,
-                    'formatted_purchase_price': submission.formatted_purchase_price,
-                    'formatted_revenue': submission.formatted_revenue,
-                    'industry': submission.industry,
-                    'location': submission.location
-                }
-                
-                if drive_url:
-                    print(f"📎 Including Drive URL in notification")
-                    slack_sent = slack_notifier.send_pdf_notification(
-                        submission_data=submission_data,
-                        drive_url=drive_url,
-                        file_name=drive_file_name,
-                        uploaded_file_url=uploaded_file_url
-                    )
+                # Determine if we should send success or failure notification
+                if pdf_generated and email_sent:
+                    # Success: Both PDF generated and email sent
+                    if drive_url:
+                        slack_sent = slack_notifier.send_success_notification(
+                            form_type=form_type,
+                            full_name=submission.full_name,
+                            email=submission.email,
+                            drive_url=drive_url
+                        )
+                    else:
+                        # PDF generated but no Drive URL - still success
+                        print(f"⚠️ No Drive URL available, but PDF generated and email sent")
+                        slack_sent = slack_notifier.send_success_notification(
+                            form_type=form_type,
+                            full_name=submission.full_name,
+                            email=submission.email,
+                            drive_url="Not available"
+                        )
                 else:
-                    print(f"⚠️ No Drive URL available, sending simple notification")
-                    form_label = "CIM Questions" if form_type == "CIM" else "LOI Questions"
-                    message = f"New {form_label} Submission from {submission.full_name} ({submission.email})"
-                    slack_sent = slack_notifier.send_simple_message(message)
+                    # Failure: Either PDF generation or email sending failed
+                    error_type = "GENERATE" if not pdf_generated else "SEND"
+                    slack_sent = slack_notifier.send_failure_notification(
+                        form_type=form_type,
+                        full_name=submission.full_name,
+                        email=submission.email,
+                        error_type=error_type,
+                        drive_url=drive_url if drive_url else None
+                    )
                 
                 if slack_sent:
                     print(f"✅ Slack notification sent successfully")

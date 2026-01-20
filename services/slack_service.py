@@ -188,6 +188,102 @@ class SlackNotifier:
         except Exception as e:
             print(f"❌ Failed to send simple Slack message: {str(e)}")
             return False
+    
+    def send_success_notification(self, form_type: str, full_name: str, email: str, drive_url: str) -> bool:
+        """
+        Send success notification when PDF is generated and email is sent successfully
+        
+        Args:
+            form_type: "LOI", "CIM", or "CIM_TRAINING"
+            full_name: Submitter's full name
+            email: Submitter's email
+            drive_url: Google Drive URL for the PDF
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Format form type for display
+            form_label = form_type.upper() if form_type else "PDF"
+            
+            # Build simple message
+            message_text = f"""New {form_label} PDF generated
+Submitter: {full_name}
+Email: {email}
+View PDF on Google Drive: {drive_url}"""
+            
+            payload = {"text": message_text}
+            if self.channel:
+                payload["channel"] = self.channel
+            
+            response = requests.post(
+                self.webhook_url,
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(f"✅ Success Slack notification sent")
+                return True
+            else:
+                print(f"❌ Success Slack notification failed: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed to send success Slack notification: {str(e)}")
+            return False
+    
+    def send_failure_notification(self, form_type: str, full_name: str, email: str, error_type: str, drive_url: str = None) -> bool:
+        """
+        Send failure notification when PDF generation or email sending fails
+        
+        Args:
+            form_type: "LOI", "CIM", or "CIM_TRAINING"
+            full_name: Submitter's full name
+            email: Submitter's email
+            error_type: "GENERATE" or "SEND"
+            drive_url: Optional Google Drive URL (if PDF was generated but email failed)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Format form type for display
+            form_label = form_type.upper() if form_type else "PDF"
+            
+            # Build failure message
+            error_action = "GENERATE" if error_type == "GENERATE" else "SEND"
+            message_text = f"""❌ {form_label} PDF generated failed
+Error: Failed to {error_action}
+Submitter: {full_name}
+Email: {email}"""
+            
+            # Add Drive URL if available
+            if drive_url:
+                message_text += f"\nView PDF on Google Drive: {drive_url}"
+            
+            payload = {"text": message_text}
+            if self.channel:
+                payload["channel"] = self.channel
+            
+            response = requests.post(
+                self.webhook_url,
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(f"✅ Failure Slack notification sent")
+                return True
+            else:
+                print(f"❌ Failure Slack notification failed: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Failed to send failure Slack notification: {str(e)}")
+            return False
 
 
 def create_slack_notifier(webhook_url: str, channel: Optional[str] = None) -> SlackNotifier:
