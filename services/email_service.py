@@ -239,7 +239,7 @@ class EmailService:
             # Build a robust base URL for the login link
             # Prefer caller-provided base_url (e.g., from request.base_url)
             base_url = (base_url)
-            print("base url >>>>>>>>>>>>>>>>>>>>>>>", base_url)
+            print("base url >>>>>>>>>>>>>>>>>>>>>>>", base_url)   
             if not base_url:
                 # Fallback to HOST and PORT. If HOST is 0.0.0.0, present localhost for email link
                 host = getattr(settings, 'HOST', '127.0.0.1')
