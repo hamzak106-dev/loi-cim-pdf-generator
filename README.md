@@ -81,6 +81,7 @@ SMTP_PORT=587
 EMAIL_USERNAME=your-email@gmail.com
 EMAIL_PASSWORD=your-app-password
 FROM_EMAIL=your-email@gmail.com
+CLIENT_TO_EMAIL=client@example.com
 
 # Redis
 REDIS_URL=redis://localhost:6379/0

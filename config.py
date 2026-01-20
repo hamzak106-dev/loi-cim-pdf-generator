@@ -42,6 +42,7 @@ class Settings:
     EMAIL_USERNAME: str = os.getenv("EMAIL_USERNAME", "")
     EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD", "")
     FROM_EMAIL: str = os.getenv("FROM_EMAIL", "")
+    CLIENT_TO_EMAIL: Optional[str] = os.getenv("CLIENT_TO_EMAIL")
     
     SLACK_WEBHOOK_URL: Optional[str] = os.getenv("SLACK_WEBHOOK_URL")
     SLACK_CHANNEL: str = os.getenv("SLACK_CHANNEL", "#business-submissions")
