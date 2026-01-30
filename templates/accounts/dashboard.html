@@ -3,6 +3,9 @@
 {% block title %}Admin Dashboard - Business Acquisition Services{% endblock %}
 
 {% block content %}
+<div id="dashboard-filter-loader" aria-hidden="true">
+  <div class="spinner"></div>
+</div>
 <style>
   .table-container {
     max-height: 600px;
@@ -77,6 +80,29 @@
     border: 1px solid rgba(255, 255, 255, 0.2);
   }
   
+  #dashboard-filter-loader {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 13, 30, 0.7);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+  }
+  #dashboard-filter-loader.show {
+    display: flex;
+  }
+  #dashboard-filter-loader .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #4da3ff;
+    border-radius: 50%;
+    animation: dashboard-loader-spin 0.8s linear infinite;
+  }
+  @keyframes dashboard-loader-spin {
+    to { transform: rotate(360deg); }
+  }
   .filter-btn.active {
     background-color: rgba(13, 56, 114, 0.8);
     border: 1px solid #fff;
@@ -436,57 +462,31 @@
           <div class="row align-items-center">
             <div class="col-md-4">
               <h4 class="mb-0">All Submissions</h4>
+              {% if current_filter in ['loi', 'cim_ben', 'cim_mitch'] and next_call_dates %}
+              <div class="ms-2 d-inline-flex align-items-center gap-1 mt-3">
+                <label for="call-date-select" class="form-label mb-0 me-1 text-nowrap" style="font-size: 0.9rem;">Call date:</label>
+                <select id="call-date-select" class="form-select form-select-sm" style="max-width: 180px;">
+                  <option value="">All dates</option>
+                  {% for d in next_call_dates %}
+                  <option value="{{ d }}" {% if selected_call_date == d %}selected{% endif %}>{{ d }}</option>
+                  {% endfor %}
+                </select>
+                
+              </div>
+              {% endif %}
             </div>
+            
             <div class="col-md-8">
               <div class="d-flex justify-content-end align-items-center gap-2">
                 <!-- Filter Buttons -->
                 <div class="btn-group" role="group">
-                  <a href="/admin/dashboard?filter_type=all" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'all' %}active{% endif %}">All</a>
-                  <a href="/admin/dashboard?filter_type=loi" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'loi' %}active{% endif %}">LOI Review</a>
-                  <a href="/admin/dashboard?filter_type=cim_ben" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'cim_ben' %}active{% endif %}">CIM Review (Ben)</a>
-                  <a href="/admin/dashboard?filter_type=cim_mitch" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'cim_mitch' %}active{% endif %}">CIM Review (Mitch)</a>
-                  <a href="/admin/dashboard?filter_type=cim_training" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'cim_training' %}active{% endif %}">CIM Training</a>
-                  <!-- Date filter (commented out for now)
-                  <a href="/admin/dashboard?filter_type=with_meeting_date" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'with_meeting_date' %}active{% endif %}">With meeting date</a>
-                  <a href="/admin/dashboard?filter_type=no_meeting_date" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'no_meeting_date' %}active{% endif %}">No meeting date</a>
+                  <a href="/admin/dashboard?filter_type=all" class="btn btn-sm btn-outline-light filter-btn filter-link {% if current_filter == 'all' %}active{% endif %}">All</a>
+                  <a href="/admin/dashboard?filter_type=loi" class="btn btn-sm btn-outline-light filter-btn filter-link {% if current_filter == 'loi' %}active{% endif %}">LOI Review</a>
+                  <a href="/admin/dashboard?filter_type=cim_ben" class="btn btn-sm btn-outline-light filter-btn filter-link {% if current_filter == 'cim_ben' %}active{% endif %}">CIM Review (Ben)</a>
+                  <a href="/admin/dashboard?filter_type=cim_mitch" class="btn btn-sm btn-outline-light filter-btn filter-link {% if current_filter == 'cim_mitch' %}active{% endif %}">CIM Review (Mitch)</a>
+                  <a href="/admin/dashboard?filter_type=cim_training" class="btn btn-sm btn-outline-light filter-btn filter-link {% if current_filter == 'cim_training' %}active{% endif %}">CIM Training</a>
                 </div>
-                <div class="ms-2 d-inline-flex align-items-center gap-1">
-                  <button type="button" class="btn btn-sm btn-outline-light" id="custom-date-btn" title="Filter by meeting date">
-                    <i class="bi bi-calendar3"></i> Custom date
-                  </button>
-                  <input type="date" id="custom-date-input" class="form-control form-control-sm d-none" style="max-width: 140px;" data-base-url="/admin/dashboard">
-                  {% if current_meeting_date %}
-                  <a href="/admin/dashboard?filter_type={{ current_filter }}" class="btn btn-sm btn-outline-secondary" title="Clear date filter">{{ current_meeting_date }} &times;</a>
-                  {% endif %}
-                </div>
-                <script>
-                (function() {
-                  var baseUrl = '/admin/dashboard';
-                  var filterType = '{{ current_filter }}';
-                  var btn = document.getElementById('custom-date-btn');
-                  var input = document.getElementById('custom-date-input');
-                  if (btn && input) {
-                    btn.addEventListener('click', function() {
-                      input.classList.toggle('d-none');
-                      if (!input.classList.contains('d-none')) {
-                        input.focus();
-                        try { input.showPicker && input.showPicker(); } catch (e) {}
-                      }
-                    });
-                    input.addEventListener('change', function() {
-                      var v = this.value;
-                      if (!v) return;
-                      var parts = v.split('-');
-                      if (parts.length !== 3) return;
-                      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                      var formatted = months[parseInt(parts[1],10)-1] + ' ' + parts[2] + ', ' + parts[0];
-                      window.location.href = baseUrl + '?filter_type=' + encodeURIComponent(filterType) + '&meeting_date=' + encodeURIComponent(formatted);
-                    });
-                  }
-                })();
-                </script>
-                -->
-                </div>
+                
                 <!-- Search Box -->
                 <input 
                   type="text" 
@@ -587,9 +587,9 @@
               <thead>
                 <tr>
                   <th>Type</th>
+                  <th>Date of meeting</th>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Date of meeting</th>
                   <th>PDF URL</th>
                   <th>File URL</th>
                   <th>Action</th>
@@ -607,9 +607,9 @@
                       <span class="badge badge-cim">CIM</span>
                     {% endif %}
                   </td>
+                  <td>{{ form.meeting_date_display }}</td>
                   <td><strong>{{ form.full_name }}</strong></td>
                   <td>{{ form.email }}</td>
-                  <td>{{ form.meeting_date_display }}</td>
                   <td onclick="event.stopPropagation()">
                     {% if form.file_urls %}
                       <a href="{{ form.file_urls }}" target="_blank" class="clickable-link">View PDF</a>
@@ -649,6 +649,24 @@
 
 {% block scripts %}
 <script>
+(function() {
+  var loader = document.getElementById('dashboard-filter-loader');
+  if (loader) {
+    document.querySelectorAll('a.filter-link').forEach(function(a) {
+      a.addEventListener('click', function() { loader.classList.add('show'); });
+    });
+    var callDateSelect = document.getElementById('call-date-select');
+    if (callDateSelect) {
+      callDateSelect.addEventListener('change', function() {
+        var v = this.value;
+        loader.classList.add('show');
+        window.location.href = v
+          ? '/admin/dashboard?filter_type={{ current_filter }}&call_date=' + encodeURIComponent(v)
+          : '/admin/dashboard?filter_type={{ current_filter }}';
+      });
+    }
+  }
+})();
 // Prevent showing cached admin dashboard via back/forward navigation after logout
 window.addEventListener('pageshow', function (event) {
   // If the page was restored from the BFCache, force a reload

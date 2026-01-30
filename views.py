@@ -1814,6 +1814,97 @@ async def admin_logout(request: Request):
     return response
 
 
+def _get_next_call_dates_for_dashboard(calendar_id: str, filter_type: str, db: Session) -> list:
+    """
+    Returns next 3 call dates for dashboard filter dropdown.
+    filter_type: 'loi', 'cim_ben', or 'cim_mitch'
+    Returns list of date strings in Form.scheduled_at format (e.g. "Jan 15, 2025").
+    """
+    try:
+        calendar_service = create_calendar_service(calendar_id=calendar_id)
+        google_service = calendar_service.service
+        now = datetime.utcnow()
+        time_min = now.isoformat() + 'Z'
+        time_max = (now + timedelta(days=180)).isoformat() + 'Z'
+        events_result = google_service.events().list(
+            calendarId=calendar_id,
+            timeMin=time_min,
+            timeMax=time_max,
+            maxResults=250,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        events = events_result.get('items', [])
+        ny_tz = pytz.timezone("America/New_York")
+
+        if filter_type == "loi":
+            db_events = db.query(MeetScheduler).filter(
+                MeetScheduler.form_type == MeetingType.LOI_CALL,
+                MeetScheduler.is_active == True
+            ).all()
+            db_event_ids = {m.google_event_id for m in db_events if m.google_event_id}
+            filtered = []
+            for event in events:
+                eid = event.get('id')
+                summary = (event.get('summary') or '').upper()
+                ext = event.get('extendedProperties', {}).get('private', {})
+                if ext.get('form_type') == 'LOI Call' or 'LOI CALL' in summary or 'LOI' in summary or eid in db_event_ids:
+                    filtered.append(event)
+        else:
+            # cim_ben or cim_mitch
+            host = "Ben" if filter_type == "cim_ben" else "Mitch"
+            db_events = db.query(MeetScheduler).filter(
+                MeetScheduler.form_type == MeetingType.CIM_CALL,
+                MeetScheduler.is_active == True
+            ).all()
+            db_event_ids = {m.google_event_id for m in db_events if m.google_event_id}
+            loi_keywords = ['LOI CALL', 'LOI CALLS', 'LOI CALL:', 'LOI -']
+            filtered = []
+            for event in events:
+                eid = event.get('id')
+                summary = (event.get('summary') or '').upper()
+                summary_lower = (event.get('summary') or '').lower()
+                ext = event.get('extendedProperties', {}).get('private', {})
+                if ext.get('form_type', '').upper() and 'LOI CALL' in ext.get('form_type', '').upper():
+                    continue
+                if any(kw in summary for kw in loi_keywords):
+                    continue
+                is_cim = ext.get('form_type') == 'CIM Call' or 'CIM CALL' in summary or ('CIM' in summary and 'CALL' in summary) or eid in db_event_ids
+                if is_cim and host:
+                    event_host = ext.get('host', '')
+                    if host.lower() not in event_host.lower() and host.lower() not in summary_lower:
+                        is_cim = False
+                if is_cim:
+                    filtered.append(event)
+
+        filtered.sort(key=lambda e: e.get('start', {}).get('dateTime', e.get('start', {}).get('date', '')))
+        date_strings = []
+        seen = set()
+        for event in filtered[:5]:
+            start_data = event.get('start', {})
+            start_time = start_data.get('dateTime', start_data.get('date', ''))
+            if not start_time:
+                continue
+            try:
+                clean = start_time.replace('Z', '+00:00')
+                dt = datetime.fromisoformat(clean)
+                if dt.tzinfo is None:
+                    dt = pytz.UTC.localize(dt)
+                dt_est = dt.astimezone(ny_tz)
+                d_str = dt_est.strftime("%b %d, %Y")
+                if d_str not in seen:
+                    seen.add(d_str)
+                    date_strings.append(d_str)
+                    if len(date_strings) >= 3:
+                        break
+            except Exception:
+                continue
+        return date_strings
+    except Exception as e:
+        print(f"Dashboard _get_next_call_dates_for_dashboard error: {e}")
+        return []
+
+
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 async def admin_dashboard(request: Request, filter_type: str = "all"):
     """Admin dashboard with unified Form model"""
@@ -1851,16 +1942,17 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
         elif filter_type == "cim":
             # All CIM types
             query = query.filter(Form.form_type.in_([FormType.CIM, FormType.CIM_TRAINING]))
-        # Date filter (commented out for now)
-        # elif filter_type == "with_meeting_date":
-        #     query = query.filter(Form.scheduled_at != None, Form.scheduled_at != '')
-        # elif filter_type == "no_meeting_date":
-        #     query = query.filter((Form.scheduled_at == None) | (Form.scheduled_at == ''))
-        #
-        # meeting_date_param = request.query_params.get("meeting_date")
-        # if meeting_date_param:
-        #     query = query.filter(Form.scheduled_at == meeting_date_param)
-        meeting_date_param = ""  # unused while date filter is commented out
+        
+        # Call-date filter: when LOI or CIM (Ben/Mitch) is selected, filter by selected call date so all people for that date show
+        call_date_param = request.query_params.get("call_date")
+        if call_date_param:
+            query = query.filter(Form.scheduled_at == call_date_param)
+        
+        # Next 3 call dates for dropdown (only when LOI or CIM Ben/Mitch is selected)
+        cal_id = settings.GOOGLE_CALENDAR_ID or 'primary'
+        next_call_dates = []
+        if filter_type in ("loi", "cim_ben", "cim_mitch"):
+            next_call_dates = _get_next_call_dates_for_dashboard(cal_id, filter_type, db)
         
         all_forms = query.all()
         
@@ -1908,7 +2000,8 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
             "user_total_pages": total_pages,
             "user_total": total_users,
             "current_filter": filter_type,
-            "current_meeting_date": meeting_date_param or "",  # used when date filter is enabled
+            "selected_call_date": call_date_param or "",
+            "next_call_dates": next_call_dates,
             "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
         })
     finally:
