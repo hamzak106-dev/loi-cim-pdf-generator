@@ -161,6 +161,17 @@ class Form(Base):
             return f"${self.total_adjustments:,.0f}"
         return "Not specified"
 
+    @property
+    def meeting_date_display(self) -> str:
+        """Display string for scheduled meeting date (e.g. 'Jan 15, 2025 2:00 PM')"""
+        if self.scheduled_at and self.time:
+            return f"{self.scheduled_at} {self.time}"
+        if self.scheduled_at:
+            return self.scheduled_at
+        if self.time:
+            return self.time
+        return "--"
+
 
 # Keep old models for backward compatibility (optional)
 class LOIQuestion(Base):
@@ -398,8 +409,8 @@ class MeetingInstance(Base):
     
     # Instance Information
     instance_time = Column(DateTime(timezone=True), nullable=False, index=True, comment="Specific date and time for this instance")
-    guest_count = Column(Integer, default=0, nullable=False, comment="Current number of registered guests (max 10)")
-    max_guests = Column(Integer, default=10, nullable=False, comment="Maximum number of guests allowed")
+    guest_count = Column(Integer, default=0, nullable=False, comment="Current number of registered guests (max 5)")
+    max_guests = Column(Integer, default=5, nullable=False, comment="Maximum number of guests allowed per call")
     
     # Metadata
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="Record creation timestamp")

@@ -506,9 +506,9 @@
               <thead>
                 <tr>
                   <th>Type</th>
+                  <th>Date of meeting</th>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Date of meeting</th>
                   <th>PDF URL</th>
                   <th>File URL</th>
                   <th>Action</th>
@@ -526,9 +526,9 @@
                       <span class="badge badge-cim">CIM</span>
                     {% endif %}
                   </td>
-                  <td><strong>{{ form.full_name }}</strong></td>
-                  <td>{{ form.email }}</td>
                   <td>{{ form.meeting_date_display }}</td>
+                  <td><strong>{{ form.full_name }}</strong></td>
+                    <td>{{ form.email }}</td>
                   <td onclick="event.stopPropagation()">
                     {% if form.file_urls %}
                       <a href="{{ form.file_urls }}" target="_blank" class="clickable-link">View PDF</a>
