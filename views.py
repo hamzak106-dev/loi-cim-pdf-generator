@@ -18,6 +18,10 @@ from datetime import datetime, timezone
 import tempfile
 import pytz
 from config import settings
+
+# Maximum registrations per LOI/CIM call (5 slots per call)
+MAX_GUESTS_PER_CALL = 5
+
 import hmac
 import hashlib
 from googleapiclient.errors import HttpError
@@ -283,6 +287,8 @@ async def business_form_page(request: Request):
     if not user:
         return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     
+    # Use calendar_id from query (e.g. after form reload) or settings
+    calendar_id = request.query_params.get("calendar_id") or settings.GOOGLE_CALENDAR_ID or 'primary'
     # Get user email from session to pre-fill the form
     user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
     user_name = user.get('name', '') if isinstance(user, dict) else (user.name if hasattr(user, 'name') else '')
@@ -290,7 +296,7 @@ async def business_form_page(request: Request):
     return templates.TemplateResponse("business_form.html", {
         "request": request,
         "page_title": "LOI Questions",
-        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary',
+        "calendar_id": calendar_id,
         "user_email": user_email,
         "user_name": user_name
     })
@@ -303,6 +309,8 @@ async def cim_form_page(request: Request):
     if not user:
         return RedirectResponse(url="/access", status_code=HTTP_302_FOUND)
     
+    # Use calendar_id from query (e.g. after form reload) or settings
+    calendar_id = request.query_params.get("calendar_id") or settings.GOOGLE_CALENDAR_ID or 'primary'
     # Get user email and name from session to pre-fill the form
     user_email = user.get('email', '') if isinstance(user, dict) else (user.email if hasattr(user, 'email') else '')
     user_name = user.get('name', '') if isinstance(user, dict) else (user.name if hasattr(user, 'name') else '')
@@ -310,7 +318,7 @@ async def cim_form_page(request: Request):
     return templates.TemplateResponse("cim_questions.html", {
         "request": request,
         "page_title": "CIM Questions",
-        "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary',
+        "calendar_id": calendar_id,
         "user_email": user_email,
         "user_name": user_name
     })
@@ -479,7 +487,7 @@ async def get_all_calendar_events(request: Request, calendar_id: Optional[str] =
 async def add_attendee_to_event(request: Request):
     """
     API endpoint to add a user as an attendee to an existing Google Calendar event
-    Limits registrations to 10 unique users per event
+    Limits registrations to 5 unique users per event (LOI/CIM)
     Updates the existing event by adding the user's email to the attendees list
     Uses sendUpdates='none' to avoid requiring domain-wide delegation
     
@@ -532,12 +540,12 @@ async def add_attendee_to_event(request: Request):
             EventRegistration.event_id == event_id
         ).count()
         
-        # Check if event is full (max 10 registrations)
-        MAX_REGISTRATIONS = 10
+        # Check if event is full (max 5 registrations per call)
+        MAX_REGISTRATIONS = MAX_GUESTS_PER_CALL
         if registration_count >= MAX_REGISTRATIONS:
             return JSONResponse({
                 "success": False,
-                "error": "No slots available. Maximum 10 registrations reached.",
+                "error": "No slots available. Maximum 5 registrations reached.",
                 "full": True,
                 "registration_count": registration_count
             }, status_code=400)
@@ -804,7 +812,8 @@ async def get_loi_calls_with_submissions(request: Request, calendar_id: Optional
                 MeetingInstance.google_event_id == event_id
             ).first()
             
-            max_guests = 10  # Default max guests
+            # Always use current MAX_GUESTS_PER_CALL for limit (dynamic, not stored in DB)
+            max_guests = MAX_GUESTS_PER_CALL
             registration_count = 0
             is_full = False
             
@@ -812,27 +821,20 @@ async def get_loi_calls_with_submissions(request: Request, calendar_id: Optional
                 registration_count = db.query(MeetingRegistration).filter(
                     MeetingRegistration.instance_id == instance.id
                 ).count()
-                max_guests = instance.max_guests or 10
-                is_full = registration_count >= max_guests
-            else:
-                # If no instance exists yet, check if we need to create one
-                # For now, we'll create it when first registration happens
-                pass
-            
+            is_full = registration_count >= max_guests
             available_seats = max_guests - registration_count
 
-            # Only include events that have available seats (not full)
-            if available_seats > 0 and not is_full:
-                formatted_calls.append({
-                    'id': event_id,
-                    'name': summary,
-                    'time': formatted_time,
-                    'time_iso': start_time,
-                    'submission_count': registration_count,
-                    'max_guests': max_guests,
-                    'available_seats': available_seats,
-                    'is_full': is_full
-                })
+            # Include all events: with seats as selectable, full ones as "No slots available" (is_full=True)
+            formatted_calls.append({
+                'id': event_id,
+                'name': summary,
+                'time': formatted_time,
+                'time_iso': start_time,
+                'submission_count': registration_count,
+                'max_guests': max_guests,
+                'available_seats': available_seats,
+                'is_full': is_full
+            })
         
         # If no LOI calls found, return helpful debug info
         if len(formatted_calls) == 0:
@@ -874,8 +876,6 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
     API endpoint to get the 3 upcoming CIM Call events with their submission counts
     Returns events with name, time, and submission count for dropdown selection
     Can filter by host (Ben or Mitch) if provided
-    
-    NOTE: For now, this returns the same events as LOI calls (showing same calendar events for all three forms)
     """
     db = SessionLocal()
     try:
@@ -910,31 +910,46 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
         
         events = events_result.get('items', [])
         
-        # Get LOI Call event IDs from database (MeetScheduler table)
-        # NOTE: Using LOI calls since we're showing the same calendar events for all three forms
-        db_loi_events = db.query(MeetScheduler).filter(
-            MeetScheduler.form_type == MeetingType.LOI_CALL,
+        # Get CIM Call event IDs from database (MeetScheduler table)
+        db_cim_events = db.query(MeetScheduler).filter(
+            MeetScheduler.form_type == MeetingType.CIM_CALL,
             MeetScheduler.is_active == True
         ).all()
-        db_event_ids = {meeting.google_event_id for meeting in db_loi_events if meeting.google_event_id}
+        db_event_ids = {meeting.google_event_id for meeting in db_cim_events if meeting.google_event_id}
         
-        # Filter for events - use same logic as LOI calls
-        # For now, show same calendar events for all three forms (LOI, CIM, CIM Training)
+        # Filter for CIM Call events - check multiple criteria:
+        # 1. Extended properties form_type = "CIM Call"
+        # 2. Event summary/title contains "CIM Call" or "CIM"
+        # 3. Event ID matches database records
+        # 4. If no explicit LOI Call markers, treat as CIM Call (fallback)
         cim_events = []
+        loi_keywords = ['LOI CALL', 'LOI CALLS', 'LOI CALL:', 'LOI -']
+        
         for event in events:
             event_id = event.get('id')
             summary = event.get('summary', '').upper()
+            summary_lower = event.get('summary', '').lower()
             extended_props = event.get('extendedProperties', {}).get('private', {})
             
-            # Check if it's an LOI Call event (since we're using same events for all forms)
+            # Check if it's a CIM Call event
             is_cim_call = False
+            is_loi_call = False
             
-            # Check extended properties
-            if extended_props.get('form_type') == 'LOI Call':
+            # First, check if it's explicitly an LOI Call (exclude these)
+            loi_form_type = extended_props.get('form_type', '').upper()
+            if 'LOI CALL' in loi_form_type or any(keyword in summary for keyword in loi_keywords):
+                is_loi_call = True
+            
+            # Skip LOI calls
+            if is_loi_call:
+                continue
+            
+            # Check extended properties for CIM Call
+            if extended_props.get('form_type') == 'CIM Call':
                 is_cim_call = True
             
-            # Check event title/summary - match LOI calls
-            if 'LOI CALL' in summary or 'LOI' in summary:
+            # Check event title/summary - match CIM calls
+            if 'CIM CALL' in summary or ('CIM' in summary and 'CALL' in summary):
                 is_cim_call = True
             
             # Check database records
@@ -944,25 +959,29 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
             # If host filter is provided, check if event matches host
             if is_cim_call and host:
                 event_host = extended_props.get('host', '')
-                event_summary_lower = event.get('summary', '').lower()
                 # Check if host matches (case-insensitive)
-                if host.lower() not in event_host.lower() and host.lower() not in event_summary_lower:
+                if host.lower() not in event_host.lower() and host.lower() not in summary_lower:
                     is_cim_call = False
             
             if is_cim_call:
                 cim_events.append(event)
         
-        # Debug logging (similar to LOI calls)
+        # Debug logging
         print(f"📅 Found {len(events)} total events, {len(cim_events)} CIM Call events")
         if cim_events:
             for event in cim_events:
                 print(f"  - CIM Call: {event.get('summary')} ({event.get('id')})")
         else:
-            print(f"  ⚠️ No CIM Call events found. Checking first few events:")
-            for event in events[:5]:
+            print(f"  ⚠️ No CIM Call events found. Checking all events:")
+            print(f"   Database CIM Call records: {len(db_cim_events)}")
+            if db_cim_events:
+                print(f"   Database event IDs: {list(db_event_ids)[:5]}")
+            print(f"   All event titles and form_types:")
+            for event in events[:10]:  # Show first 10 events
                 summary = event.get('summary', 'No title')
                 ext_props = event.get('extendedProperties', {}).get('private', {})
-                print(f"    - {summary} | form_type: {ext_props.get('form_type')}")
+                form_type = ext_props.get('form_type', 'Not set')
+                print(f"    - '{summary}' | form_type: '{form_type}'")
         
         # Sort by start time (we will slice after filtering by available seats)
         cim_events.sort(key=lambda e: e.get('start', {}).get('dateTime', e.get('start', {}).get('date', '')))
@@ -977,7 +996,7 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
             start_data = event.get('start', {})
             start_time = start_data.get('dateTime', start_data.get('date', ''))
             
-            # Format time for display
+            # Format time for display in EST/EDT (America/New_York)
             formatted_time = 'Time TBD'
             if start_time:
                 try:
@@ -990,8 +1009,18 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
                     # Parse ISO datetime
                     if 'T' in start_time_clean:
                         start_date = datetime.fromisoformat(start_time_clean)
-                        # Convert to local timezone for display (using UTC offset)
-                        formatted_time = start_date.strftime('%B %d, %Y at %I:%M %p')
+                        
+                        # Convert to Eastern Time (EST/EDT)
+                        ny_tz = pytz.timezone("America/New_York")
+                        if start_date.tzinfo is None:
+                            # Assume UTC if no timezone
+                            start_date = pytz.UTC.localize(start_date)
+                        start_date_est = start_date.astimezone(ny_tz)
+                        
+                        # Format with EST/EDT indicator
+                        formatted_time = start_date_est.strftime('%B %d, %Y at %I:%M %p %Z')
+                        # Replace EDT/EST with more readable format
+                        formatted_time = formatted_time.replace('EST', 'EST').replace('EDT', 'EDT')
                     else:
                         # Date only format
                         start_date = datetime.fromisoformat(start_time_clean)
@@ -1006,7 +1035,8 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
                 MeetingInstance.google_event_id == event_id
             ).first()
             
-            max_guests = 10  # Default max guests
+            # Always use current MAX_GUESTS_PER_CALL for limit (dynamic, not stored in DB)
+            max_guests = MAX_GUESTS_PER_CALL
             registration_count = 0
             is_full = False
             
@@ -1014,39 +1044,55 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
                 registration_count = db.query(MeetingRegistration).filter(
                     MeetingRegistration.instance_id == instance.id
                 ).count()
-                max_guests = instance.max_guests
-            else:
-                # Try to get from MeetScheduler
-                scheduler = db.query(MeetScheduler).filter(
-                    MeetScheduler.google_event_id == event_id
-                ).first()
-                if scheduler:
-                    max_guests = scheduler.max_guests or 10
-            
             available_seats = max_guests - registration_count
             is_full = registration_count >= max_guests
 
-            # Only include events that have available seats (not full)
-            if available_seats > 0 and not is_full:
-                formatted_calls.append({
-                    'id': event_id,
-                    'name': summary,
-                    'time': formatted_time,
-                    'time_iso': start_time,
-                    'submission_count': registration_count,
-                    'max_guests': max_guests,
-                    'available_seats': available_seats,
-                    'is_full': is_full
-                })
+            # Include all events: with seats as selectable, full ones as "No slots available" (is_full=True)
+            formatted_calls.append({
+                'id': event_id,
+                'name': summary,
+                'time': formatted_time,
+                'time_iso': start_time,
+                'submission_count': registration_count,
+                'max_guests': max_guests,
+                'available_seats': available_seats,
+                'is_full': is_full
+            })
+        
+        # If no CIM calls found, return helpful debug info
+        if len(formatted_calls) == 0:
+            print(f"⚠️ No CIM Call events found. Total events fetched: {len(events)}")
+            print(f"   Database CIM Call records: {len(db_cim_events)}")
+            if db_cim_events:
+                print(f"   Database event IDs: {list(db_event_ids)[:5]}")
         
         # After filtering by available seats, return the earliest 3
         formatted_calls.sort(key=lambda c: c.get('time_iso') or '')
         formatted_calls = formatted_calls[:3]
 
+        # Build debug info with sample event titles
+        debug_info = None
+        if len(formatted_calls) == 0:
+            sample_events = []
+            for event in events[:5]:
+                sample_events.append({
+                    "title": event.get('summary', 'No title'),
+                    "form_type": event.get('extendedProperties', {}).get('private', {}).get('form_type', 'Not set'),
+                    "id": event.get('id', '')[:20] + '...' if len(event.get('id', '')) > 20 else event.get('id', '')
+                })
+            debug_info = {
+                "total_events": len(events),
+                "db_cim_records": len(db_cim_events),
+                "filtered_cim_events": len(cim_events),
+                # "sample_events": sample_events,
+                "message": "No CIM Call events found." 
+            }
+
         return JSONResponse({
             "success": True,
             "calls": formatted_calls,
-            "count": len(formatted_calls)
+            "count": len(formatted_calls),
+            "debug": debug_info
         })
     except Exception as e:
         print(f"Error fetching CIM calls: {traceback.format_exc()}")
@@ -1069,7 +1115,7 @@ async def get_cim_calls_with_submissions(request: Request, calendar_id: Optional
 async def get_event_registration_count(request: Request, event_id: str, email: Optional[str] = None):
     """
     API endpoint to get the registration count for an event
-    Returns the number of registered users (max 10) and whether the provided email is already registered
+    Returns the number of registered users (max 5 per call) and whether the provided email is already registered
     For LOI calls, checks MeetingRegistration table
     """
     db = SessionLocal()
@@ -1081,7 +1127,8 @@ async def get_event_registration_count(request: Request, event_id: str, email: O
         
         is_registered = False
         registration_count = 0
-        MAX_REGISTRATIONS = 10
+        # Always use current MAX_GUESTS_PER_CALL for limit (dynamic)
+        MAX_REGISTRATIONS = MAX_GUESTS_PER_CALL
         
         if instance:
             # This is an LOI call - use MeetingRegistration
@@ -1097,8 +1144,6 @@ async def get_event_registration_count(request: Request, event_id: str, email: O
                     MeetingRegistration.email == normalized_email
                 ).first()
                 is_registered = existing_registration is not None
-            
-            MAX_REGISTRATIONS = instance.max_guests or 10
         else:
             # Regular event - use EventRegistration
             registration_count = db.query(EventRegistration).filter(
@@ -1180,6 +1225,9 @@ async def handle_form_submission(request: Request, form_type: str, template_name
     try:
         form = await request.form()
         
+        # Use calendar_id from form (hidden input), query params, or settings so it persists after reload
+        calendar_id = (form.get('calendar_id') or '').strip() or request.query_params.get('calendar_id') or settings.GOOGLE_CALENDAR_ID or 'primary'
+        
         # Extract form data
         form_data = {
             'full_name': (form.get('full_name') or '').strip(),
@@ -1215,7 +1263,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                 return templates.TemplateResponse(template_name, {
                     "request": request,
                     "error": "Please select a live call for your LOI.",
-                    "form_data": {k: form.get(k) for k in form.keys()}
+                    "form_data": {k: form.get(k) for k in form.keys()},
+                    "calendar_id": calendar_id
                 })
             form_data.update({
                 'customer_concentration_risk': (form.get('customer_concentration_risk') or '').strip() or None,
@@ -1227,18 +1276,14 @@ async def handle_form_submission(request: Request, form_type: str, template_name
         # CIM-specific fields (applies to both CIM and CIM_TRAINING)
         if form_type == "CIM" or form_type == "CIM_TRAINING":
             cim_call_id = (form.get('cim_call_id') or '').strip()
-            # if not cim_call_id:
-            #     return templates.TemplateResponse(template_name, {
-            #         "request": request,
-            #         "error": "Please select a live call for your CIM.",
-            #         "form_data": {k: form.get(k) for k in form.keys()}
-            #     })
+            cim_call_host = (form.get('cim_call_host') or '').strip() or None  # Ben or Mitch
             
             form_data.update({
                 'gm_in_place': (form.get('gm_in_place') or '').strip() or None,
                 'tenure_of_gm': (form.get('tenure_of_gm') or '').strip() or None,
                 'number_of_employees': (form.get('number_of_employees') or '').strip() or None,
                 'cim_call_id': cim_call_id,  # Store selected call event ID
+                'meeting_host': cim_call_host,  # Ben or Mitch
             })
         
         # Convert numeric fields
@@ -1260,7 +1305,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
             return templates.TemplateResponse(template_name, {
                 "request": request,
                 "error": "Please fill in all required fields (Name and Email).",
-                "form_data": {k: form.get(k) for k in form.keys()}
+                "form_data": {k: form.get(k) for k in form.keys()},
+                "calendar_id": calendar_id
             })
         
         # Enforce monthly submission limit per email (max 5 per calendar month) ONLY for CIM_TRAINING
@@ -1292,7 +1338,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                 return templates.TemplateResponse(template_name, {
                     "request": request,
                     "error": f"❌ Monthly submission limit reached for CIM Training. You can submit up to {MAX_MONTHLY_SUBMISSIONS} CIM Training forms per month.",
-                    "form_data": {k: form.get(k) for k in form.keys()}
+                    "form_data": {k: form.get(k) for k in form.keys()},
+                    "calendar_id": calendar_id
                 })
         
         # Process submission using helper function
@@ -1302,7 +1349,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
             return templates.TemplateResponse(template_name, {
                 "request": request,
                 "error": message,
-                "form_data": {k: form.get(k) for k in form.keys()}
+                "form_data": {k: form.get(k) for k in form.keys()},
+                "calendar_id": calendar_id
             })
         
         # Handle file uploads - encode as base64 for cross-dyno transfer
@@ -1359,7 +1407,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 MeetingInstance.instance_time == start_time
                             ).first()
                             
-                            max_guests = 10
+                            max_guests = MAX_GUESTS_PER_CALL
                             if not instance:
                                 instance = MeetingInstance(
                                     google_event_id=loi_call_id,
@@ -1370,8 +1418,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 )
                                 db.add(instance)
                                 db.flush()
-                            else:
-                                max_guests = instance.max_guests or 10
+                            max_guests = MAX_GUESTS_PER_CALL  # Always use current constant (dynamic)
                             
                             # Check if already registered
                             normalized_email = form_data.get('email', '').lower().strip()
@@ -1385,7 +1432,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 return templates.TemplateResponse(template_name, {
                                     "request": request,
                                     "error": f"❌ You are already registered for this LOI call. You cannot submit the form multiple times for the same event.",
-                                    "form_data": form_data
+                                    "form_data": form_data,
+                                    "calendar_id": calendar_id
                                 })
                             
                             # Check if full
@@ -1398,7 +1446,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 return templates.TemplateResponse(template_name, {
                                     "request": request,
                                     "error": f"❌ This LOI call is full. Maximum {max_guests} registrations reached.",
-                                    "form_data": form_data
+                                    "form_data": form_data,
+                                    "calendar_id": calendar_id
                                 })
                             
                             # Create registration
@@ -1410,6 +1459,12 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                             db.add(registration)
                             instance.guest_count = current_registrations + 1
                             db.commit()
+                            # Store meeting date on Form for dashboard display
+                            form_record = db.query(Form).filter(Form.id == submission.id).first()
+                            if form_record and start_time:
+                                form_record.scheduled_at = start_time.strftime("%b %d, %Y")
+                                form_record.time = start_time.strftime("%I:%M %p")
+                                db.commit()
                             print(f"✅ Created MeetingRegistration for form submission: {normalized_email} for event {loi_call_id}")
                             
                             # Get event details for Google Calendar URL
@@ -1440,7 +1495,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                     "request": request,
                                 "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly.",
                                 "error": "Could not open Google Calendar - event time missing.",
-                                    "form_data": {}
+                                    "form_data": {},
+                                    "calendar_id": calendar_id
                                 })
                             
                             db.close()
@@ -1469,7 +1525,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly. Opening Google Calendar...",
                                 "form_data": {},
                                 "open_calendar": True,
-                                "event_data": event_data_dict
+                                "event_data": event_data_dict,
+                                "calendar_id": calendar_id
                             })
                         else:
                             db.close()
@@ -1509,7 +1566,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 MeetingInstance.instance_time == start_time
                             ).first()
                             
-                            max_guests = 10
+                            max_guests = MAX_GUESTS_PER_CALL
                             if not instance:
                                 instance = MeetingInstance(
                                     google_event_id=cim_call_id,
@@ -1520,8 +1577,7 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 )
                                 db.add(instance)
                                 db.flush()
-                            else:
-                                max_guests = instance.max_guests or 10
+                            max_guests = MAX_GUESTS_PER_CALL  # Always use current constant (dynamic)
                             
                             # Check if already registered
                             normalized_email = form_data.get('email', '').lower().strip()
@@ -1535,7 +1591,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 return templates.TemplateResponse(template_name, {
                                     "request": request,
                                     "error": f"❌ You are already registered for this CIM call. You cannot submit the form multiple times for the same event.",
-                                    "form_data": form_data
+                                    "form_data": form_data,
+                                    "calendar_id": calendar_id
                                 })
                             
                             # Check if full
@@ -1548,7 +1605,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 return templates.TemplateResponse(template_name, {
                                     "request": request,
                                     "error": f"❌ This CIM call is full. Maximum {max_guests} registrations reached.",
-                                    "form_data": form_data
+                                    "form_data": form_data,
+                                    "calendar_id": calendar_id
                                 })
                             
                             # Create registration
@@ -1560,6 +1618,12 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                             db.add(registration)
                             instance.guest_count = current_registrations + 1
                             db.commit()
+                            # Store meeting date on Form for dashboard display
+                            form_record = db.query(Form).filter(Form.id == submission.id).first()
+                            if form_record and start_time:
+                                form_record.scheduled_at = start_time.strftime("%b %d, %Y")
+                                form_record.time = start_time.strftime("%I:%M %p")
+                                db.commit()
                             print(f"✅ Created MeetingRegistration for form submission: {normalized_email} for event {cim_call_id}")
                             
                             # Get event details for Google Calendar URL
@@ -1590,7 +1654,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                     "request": request,
                                 "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly.",
                                 "error": "Could not open Google Calendar - event time missing.",
-                                    "form_data": {}
+                                    "form_data": {},
+                                    "calendar_id": calendar_id
                                 })
                             
                             db.close()
@@ -1619,7 +1684,8 @@ async def handle_form_submission(request: Request, form_type: str, template_name
                                 "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly. Opening Google Calendar...",
                                 "form_data": {},
                                 "open_calendar": True,
-                                "event_data": event_data_dict
+                                "event_data": event_data_dict,
+                                "calendar_id": calendar_id
                             })
                         else:
                             db.close()
@@ -1636,16 +1702,19 @@ async def handle_form_submission(request: Request, form_type: str, template_name
         return templates.TemplateResponse(template_name, {
             "request": request,
             "success": f"✅ {form_type} form submitted successfully! Your submission is being processed and you will receive an email shortly.",
-            "form_data": {}  # Clear form data on success
+            "form_data": {},  # Clear form data on success
+            "calendar_id": calendar_id
         })
         
         
     except Exception as e:
         print(f"Error in {form_type} submission: {e}")
+        calendar_id = request.query_params.get('calendar_id') or settings.GOOGLE_CALENDAR_ID or 'primary'
         return templates.TemplateResponse(template_name, {
             "request": request,
             "error": f"An error occurred: {str(e)}",
-            "form_data": {}
+            "form_data": {},
+            "calendar_id": calendar_id
         })
 
 
@@ -1782,6 +1851,16 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
         elif filter_type == "cim":
             # All CIM types
             query = query.filter(Form.form_type.in_([FormType.CIM, FormType.CIM_TRAINING]))
+        # Date filter (commented out for now)
+        # elif filter_type == "with_meeting_date":
+        #     query = query.filter(Form.scheduled_at != None, Form.scheduled_at != '')
+        # elif filter_type == "no_meeting_date":
+        #     query = query.filter((Form.scheduled_at == None) | (Form.scheduled_at == ''))
+        #
+        # meeting_date_param = request.query_params.get("meeting_date")
+        # if meeting_date_param:
+        #     query = query.filter(Form.scheduled_at == meeting_date_param)
+        meeting_date_param = ""  # unused while date filter is commented out
         
         all_forms = query.all()
         
@@ -1829,6 +1908,7 @@ async def admin_dashboard(request: Request, filter_type: str = "all"):
             "user_total_pages": total_pages,
             "user_total": total_users,
             "current_filter": filter_type,
+            "current_meeting_date": meeting_date_param or "",  # used when date filter is enabled
             "calendar_id": settings.GOOGLE_CALENDAR_ID or 'primary'
         })
     finally:
@@ -2741,12 +2821,11 @@ async def get_available_meetings(
                     MeetingInstance.instance_time == start_time
                 ).first()
                 
-                max_guests = 10  # Default
+                max_guests = MAX_GUESTS_PER_CALL  # Always use current constant (dynamic)
                 guest_count = 0
                 
                 if instance:
                     guest_count = instance.guest_count
-                    max_guests = instance.max_guests
                 else:
                     # If instance doesn't exist, create it (lazy creation)
                     instance = MeetingInstance(
@@ -2846,7 +2925,7 @@ async def get_event_details(
                 start_time = start_time.astimezone(ny_tz)
         
         guest_count = 0
-        max_guests = 10
+        max_guests = MAX_GUESTS_PER_CALL  # Always use current constant (dynamic)
         if start_time:
             instance = db.query(MeetingInstance).filter(
                 MeetingInstance.google_event_id == event_id,
@@ -2855,7 +2934,6 @@ async def get_event_details(
             
             if instance:
                 guest_count = instance.guest_count
-                max_guests = instance.max_guests
         
         # Return complete event details from Google Calendar
         return JSONResponse({
@@ -2920,7 +2998,7 @@ async def register_for_meeting(
             MeetingInstance.instance_time == start_time
         ).first()
         
-        max_guests = 10  # Default
+        max_guests = MAX_GUESTS_PER_CALL  # Default
         if not instance:
             # Create new instance record
             instance = MeetingInstance(
@@ -2951,15 +3029,15 @@ async def register_for_meeting(
                 "already_registered": True
             }, status_code=400)
         
-        # Count current registrations (up to 10 unique emails)
+        # Count current registrations (up to 5 unique emails per call)
         current_registrations = db.query(MeetingRegistration).filter(
             MeetingRegistration.instance_id == instance.id
         ).count()
         
-        # Check if instance is full (10 unique emails)
+        # Check if instance is full (5 unique emails per call)
         if current_registrations >= max_guests:
             return JSONResponse({
-                "error": "This meeting is full. Maximum 10 registrations allowed.",
+                "error": "This meeting is full. Maximum 5 registrations allowed.",
                 "full": True
             }, status_code=400)
         

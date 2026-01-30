@@ -88,6 +88,8 @@ def create_submission_record(form_data: Dict[str, Any], form_type: str, db: Sess
         gm_in_place=form_data.get('gm_in_place'),
         tenure_of_gm=form_data.get('tenure_of_gm'),
         number_of_employees=form_data.get('number_of_employees'),
+        # Scheduling (CIM/LOI host)
+        meeting_host=form_data.get('meeting_host'),
         # Status fields
         pdf_generated=False,
         email_sent=False,

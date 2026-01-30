@@ -446,8 +446,47 @@
                   <a href="/admin/dashboard?filter_type=cim_ben" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'cim_ben' %}active{% endif %}">CIM Review (Ben)</a>
                   <a href="/admin/dashboard?filter_type=cim_mitch" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'cim_mitch' %}active{% endif %}">CIM Review (Mitch)</a>
                   <a href="/admin/dashboard?filter_type=cim_training" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'cim_training' %}active{% endif %}">CIM Training</a>
+                  <!-- Date filter (commented out for now)
+                  <a href="/admin/dashboard?filter_type=with_meeting_date" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'with_meeting_date' %}active{% endif %}">With meeting date</a>
+                  <a href="/admin/dashboard?filter_type=no_meeting_date" class="btn btn-sm btn-outline-light filter-btn {% if current_filter == 'no_meeting_date' %}active{% endif %}">No meeting date</a>
                 </div>
-                
+                <div class="ms-2 d-inline-flex align-items-center gap-1">
+                  <button type="button" class="btn btn-sm btn-outline-light" id="custom-date-btn" title="Filter by meeting date">
+                    <i class="bi bi-calendar3"></i> Custom date
+                  </button>
+                  <input type="date" id="custom-date-input" class="form-control form-control-sm d-none" style="max-width: 140px;" data-base-url="/admin/dashboard">
+                  {% if current_meeting_date %}
+                  <a href="/admin/dashboard?filter_type={{ current_filter }}" class="btn btn-sm btn-outline-secondary" title="Clear date filter">{{ current_meeting_date }} &times;</a>
+                  {% endif %}
+                </div>
+                <script>
+                (function() {
+                  var baseUrl = '/admin/dashboard';
+                  var filterType = '{{ current_filter }}';
+                  var btn = document.getElementById('custom-date-btn');
+                  var input = document.getElementById('custom-date-input');
+                  if (btn && input) {
+                    btn.addEventListener('click', function() {
+                      input.classList.toggle('d-none');
+                      if (!input.classList.contains('d-none')) {
+                        input.focus();
+                        try { input.showPicker && input.showPicker(); } catch (e) {}
+                      }
+                    });
+                    input.addEventListener('change', function() {
+                      var v = this.value;
+                      if (!v) return;
+                      var parts = v.split('-');
+                      if (parts.length !== 3) return;
+                      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                      var formatted = months[parseInt(parts[1],10)-1] + ' ' + parts[2] + ', ' + parts[0];
+                      window.location.href = baseUrl + '?filter_type=' + encodeURIComponent(filterType) + '&meeting_date=' + encodeURIComponent(formatted);
+                    });
+                  }
+                })();
+                </script>
+                -->
+                </div>
                 <!-- Search Box -->
                 <input 
                   type="text" 
@@ -469,10 +508,7 @@
                   <th>Type</th>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Industry</th>
-                  <th>Location</th>
-                  <th>Purchase Price</th>
-                  <th>Offer Price</th>
+                  <th>Date of meeting</th>
                   <th>PDF URL</th>
                   <th>File URL</th>
                   <th>Action</th>
@@ -492,10 +528,7 @@
                   </td>
                   <td><strong>{{ form.full_name }}</strong></td>
                   <td>{{ form.email }}</td>
-                  <td>{{ form.industry or '--' }}</td>
-                  <td>{{ form.location or '--' }}</td>
-                  <td>{{ form.formatted_purchase_price }}</td>
-                  <td>{{ form.formatted_revenue }}</td>
+                  <td>{{ form.meeting_date_display }}</td>
                   <td onclick="event.stopPropagation()">
                     {% if form.file_urls %}
                       <a href="{{ form.file_urls }}" target="_blank" class="clickable-link">View PDF</a>
@@ -530,7 +563,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="10" class="text-center text-muted">No submissions yet</td>
+                  <td colspan="7" class="text-center text-muted">No submissions yet</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -556,10 +589,7 @@
                   <th>Type</th>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Industry</th>
-                  <th>Location</th>
-                  <th>Purchase Price</th>
-                  <th>Offer Price</th>
+                  <th>Date of meeting</th>
                   <th>PDF URL</th>
                   <th>File URL</th>
                   <th>Action</th>
@@ -579,10 +609,7 @@
                   </td>
                   <td><strong>{{ form.full_name }}</strong></td>
                   <td>{{ form.email }}</td>
-                  <td>{{ form.industry or '--' }}</td>
-                  <td>{{ form.location or '--' }}</td>
-                  <td>{{ form.formatted_purchase_price }}</td>
-                  <td>{{ form.formatted_revenue }}</td>
+                  <td>{{ form.meeting_date_display }}</td>
                   <td onclick="event.stopPropagation()">
                     {% if form.file_urls %}
                       <a href="{{ form.file_urls }}" target="_blank" class="clickable-link">View PDF</a>
@@ -607,7 +634,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                  <td colspan="9" class="text-center text-muted">No reviewed forms yet</td>
+                  <td colspan="7" class="text-center text-muted">No reviewed forms yet</td>
                 </tr>
                 {% endfor %}
               </tbody>

@@ -243,7 +243,7 @@ async function fetchLOICalls() {
       dropdown.remove(1);
     }
     
-    const calendarId = '{{ calendar_id }}' || 'primary';
+    const calendarId = (new URLSearchParams(window.location.search)).get('calendar_id') || '{{ calendar_id }}' || 'primary';
     const response = await fetch(`/api/calendar/events/loi-calls?calendar_id=${encodeURIComponent(calendarId)}`);
     const data = await response.json();
     
@@ -267,21 +267,18 @@ async function fetchLOICalls() {
       return;
     }
     
-    // Populate dropdown with calls
+    // Populate dropdown with calls (include full calls as "No slots available")
     data.calls.forEach(call => {
       const option = document.createElement('option');
-      option.value = call.id;
+      option.value = call.is_full ? '' : call.id;  // Full calls not selectable
       
-      // Format: "Event Name - Date/Time (Y seats available)"
-      // If full: disable the option
-      const seatsText = call.is_full ? '0 reviews remaining' : `${call.available_seats} review${call.available_seats !== 1 ? 's' : ''} remaining`;
-      
+      const seatsText = call.is_full
+        ? 'No slots available'
+        : `${call.available_seats} slot${call.available_seats !== 1 ? 's' : ''} remaining`;
       option.textContent = `${call.name} - ${call.time} (${seatsText})`;
       
-      // Disable if full (10 registrations)
       if (call.is_full) {
         option.disabled = true;
-        option.textContent += ' - FULL';
       }
       
       dropdown.appendChild(option);
@@ -307,8 +304,7 @@ async function fetchCalendarEvents() {
     errorEl.style.display = 'none';
     eventsListEl.innerHTML = '';
     
-    // Get calendar_id from backend template variable
-    const calendarId = '{{ calendar_id }}' || 'primary';
+    const calendarId = (new URLSearchParams(window.location.search)).get('calendar_id') || '{{ calendar_id }}' || 'primary';
     const response = await fetch(`/api/calendar/events?calendar_id=${encodeURIComponent(calendarId)}`);
     const data = await response.json();
     
@@ -866,8 +862,7 @@ function showEventDetailsModal(event) {
   
   bodyEl.innerHTML = bodyHtml;
   
-  // Build footer with button
-  const calendarId = '{{ calendar_id }}' || 'primary';
+  const calendarId = (new URLSearchParams(window.location.search)).get('calendar_id') || '{{ calendar_id }}' || 'primary';
   const eventJson = JSON.stringify(event).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   
   let footerHtml = `<div id="calendarButtonContainer" style="min-height: 50px; display: flex; align-items: center; justify-content: center;">
@@ -1043,7 +1038,7 @@ async function handleUnifiedCalendarButton(button) {
 
 
             <form method="POST" action="/submit-business" enctype="multipart/form-data" onsubmit="return validateForm();">
-              
+              <input type="hidden" name="calendar_id" value="{{ calendar_id }}">
               <!-- Personal Information Section -->
               <div class="mb-5">
                 <h5 class="border-bottom pb-2 mb-4">Personal Information</h5>
@@ -1202,10 +1197,9 @@ async function handleUnifiedCalendarButton(button) {
 
               <!-- Schedule Live Call Dropdown -->
               <div class="mb-4">
-                <!-- <label for="loiCallSelect" class="form-label fw-semibold">Choose in which live call your LOI should be reviewed</label> -->
-                <div class="form-text mb-2"><strong>Note:</strong> All times listed below are in <strong>EST</strong>.</div>
+                <div class="form-text mb-2"><strong>Note:</strong> All times listed below are in <strong>EST</strong>. Maximum 5 slots per call.</div>
                 <select class="form-select form-select-lg" id="loiCallSelect" name="loi_call_id" required>
-                  <option value="">Select the live call where your LOI will be reviewed</option></option>
+                  <option value="">Select the live call where your LOI will be reviewed</option>
                 </select>
                 <div id="loiCallsLoading" class="text-muted mt-2" style="display: none;">
                   <small>Loading available calls...</small>

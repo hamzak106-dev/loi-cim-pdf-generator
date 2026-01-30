@@ -192,14 +192,27 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* CIM call dropdown - disabled state to match theme (readable, not grey) */
+#cimCallSelect:disabled {
+  background-color: rgba(13, 56, 114, 0.12);
+  color: #0d3872;
+  border: 1px solid rgba(13, 56, 114, 0.35);
+  cursor: not-allowed;
+  opacity: 1;
+}
+#cimCallSelect:disabled option {
+  background-color: #fff;
+  color: #333;
+}
 </style>
 <script>
 // Removed old schedule call button functions - now using dropdown like business form
 
 // Fetch and display calendar events in calendar view - function definition moved below
 
-async function fetchCIMCalls() {
-  console.log('fetchCIMCalls called');
+async function fetchCIMCalls(host) {
+  console.log('fetchCIMCalls called with host:', host);
   const dropdown = document.getElementById('cimCallSelect');
   const loadingEl = document.getElementById('cimCallsLoading');
   const errorEl = document.getElementById('cimCallsError');
@@ -209,61 +222,64 @@ async function fetchCIMCalls() {
     return;
   }
   
-  console.log('CIM call dropdown found, fetching calls...');
+  if (!host) {
+    dropdown.disabled = true;
+    dropdown.innerHTML = '<option value="">Select host above first, then choose a call</option>';
+    if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+    return;
+  }
   
   try {
     if (loadingEl) loadingEl.style.display = 'block';
-    if (errorEl) errorEl.style.display = 'none';
+    if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
     
     // Clear existing options except the first one
     while (dropdown.options.length > 1) {
       dropdown.remove(1);
     }
+    dropdown.disabled = true;
+    dropdown.innerHTML = '<option value="">Loading...</option>';
     
-    const calendarId = '{{ calendar_id }}' || 'primary';
-    console.log('Fetching CIM calls from:', `/api/calendar/events/cim-calls?calendar_id=${encodeURIComponent(calendarId)}`);
-    const response = await fetch(`/api/calendar/events/cim-calls?calendar_id=${encodeURIComponent(calendarId)}`);
+    const calendarId = (new URLSearchParams(window.location.search)).get('calendar_id') || '{{ calendar_id }}' || 'primary';
+    const url = `/api/calendar/events/cim-calls?calendar_id=${encodeURIComponent(calendarId)}&host=${encodeURIComponent(host)}`;
+    console.log('Fetching CIM calls from:', url);
+    const response = await fetch(url);
     const data = await response.json();
     console.log('CIM calls API response:', data);
     
     if (loadingEl) loadingEl.style.display = 'none';
     
+    dropdown.disabled = false;
+    
     if (!data.success || !data.calls || data.calls.length === 0) {
-      console.log('No CIM calls found. Response:', data);
-      const option = document.createElement('option');
-      option.value = '';
-      option.textContent = 'No CIM calls available';
-      option.disabled = true;
-      dropdown.appendChild(option);
+      console.log('No CIM calls found for host:', host, 'Response:', data);
+      dropdown.innerHTML = '<option value="">No calls available with ' + host + ' – try another host or check back later</option>';
       if (errorEl) {
-        let errorMsg = 'No CIM calls found. Please contact support.';
-        if (data.debug_info) {
-          errorMsg += ` (${data.debug_info.message})`;
+        let errorMsg = 'No CIM calls found with ' + host + '. Try the other host or contact support.';
+        if (data.debug && data.debug.message) {
+          errorMsg = data.debug.message;
         }
         errorEl.textContent = errorMsg;
         errorEl.style.display = 'block';
       }
-      console.error('No CIM calls found:', data);
       return;
     }
     
-    // Populate dropdown with calls
-    console.log(`Populating dropdown with ${data.calls.length} CIM calls`);
+    dropdown.innerHTML = '<option value="">Choose in which live call your CIM should be reviewed</option>';
+    
+    // Populate dropdown with calls (include full calls as "No slots available")
+    console.log(`Populating dropdown with ${data.calls.length} CIM calls for ${host}`);
     data.calls.forEach(call => {
-      console.log('Adding call option:', call);
       const option = document.createElement('option');
-      option.value = call.id;
+      option.value = call.is_full ? '' : call.id;  // Full calls not selectable
       
-      // Format: "Event Name - Date/Time (Y seats available)"
-      // If full: disable the option
-      const seatsText = call.is_full ? '0 reviews remaining' : `${call.available_seats} review${call.available_seats !== 1 ? 's' : ''} remaining`;
-      
+      const seatsText = call.is_full
+        ? 'No slots available'
+        : `${call.available_seats} slot${call.available_seats !== 1 ? 's' : ''} remaining`;
       option.textContent = `${call.name} - ${call.time} (${seatsText})`;
       
-      // Disable if full (10 registrations)
       if (call.is_full) {
         option.disabled = true;
-        option.textContent += ' - FULL';
       }
       
       dropdown.appendChild(option);
@@ -271,6 +287,8 @@ async function fetchCIMCalls() {
     
   } catch (error) {
     if (loadingEl) loadingEl.style.display = 'none';
+    dropdown.disabled = false;
+    dropdown.innerHTML = '<option value="">Error loading calls – try again</option>';
     if (errorEl) {
       errorEl.textContent = 'Failed to load CIM calls. Please try again later.';
       errorEl.style.display = 'block';
@@ -279,10 +297,30 @@ async function fetchCIMCalls() {
   }
 }
 
-// Initialize on page load - call fetchCIMCalls when DOM is ready
+function getSelectedCimHost() {
+  const ben = document.getElementById('cimHostBen');
+  const mitch = document.getElementById('cimHostMitch');
+  if (ben && ben.checked) return 'Ben';
+  if (mitch && mitch.checked) return 'Mitch';
+  return null;
+}
+
+function setupCimHostListeners() {
+  const hostRadios = document.querySelectorAll('input[name="cim_call_host"]');
+  hostRadios.forEach(radio => {
+    radio.addEventListener('change', function() {
+      const host = this.value;
+      fetchCIMCalls(host);
+    });
+  });
+}
+
+// Initialize on page load - set up host selection; fetch CIM calls only when host is selected
 document.addEventListener('DOMContentLoaded', function() {
   console.log('DOMContentLoaded - CIM form (first script)');
-  fetchCIMCalls();
+  setupCimHostListeners();
+  // Do not fetch until user selects a host
+  fetchCIMCalls(getSelectedCimHost());
   
   // Show event details modal if event_data is available after form submission
   {% if open_calendar and event_data %}
@@ -325,8 +363,7 @@ async function fetchCalendarEventsForCIM() {
     errorEl.style.display = 'none';
     calendarViewEl.innerHTML = '';
     
-    // Get calendar_id from backend template variable
-    const calendarId = '{{ calendar_id }}' || 'primary';
+    const calendarId = (new URLSearchParams(window.location.search)).get('calendar_id') || '{{ calendar_id }}' || 'primary';
     const response = await fetch(`/api/calendar/events?calendar_id=${encodeURIComponent(calendarId)}`);
     const data = await response.json();
     
@@ -355,7 +392,7 @@ async function fetchCalendarEventsForCIM() {
     
     if (futureEvents.length === 0) {
       calendarViewEl.innerHTML = '<div class="col-12"><div class="text-muted text-center py-3">No upcoming events found.</div></div>';
-      return;
+      return; 
     }
     
     // Group events by date
@@ -796,7 +833,7 @@ function showEventDetailsModal(event) {
   
   bodyEl.innerHTML = bodyHtml;
   
-  const calendarId = '{{ calendar_id }}' || 'primary';
+  const calendarId = (new URLSearchParams(window.location.search)).get('calendar_id') || '{{ calendar_id }}' || 'primary';
   const eventJson = JSON.stringify(event).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   
   let footerHtml = `<div id="calendarButtonContainer" style="min-height: 50px; display: flex; align-items: center; justify-content: center;">
@@ -884,7 +921,7 @@ async function handleUnifiedCalendarButton(button) {
 
 
             <form method="POST" action="/submit-cim" enctype="multipart/form-data" onsubmit="return validateForm();">
-              
+              <input type="hidden" name="calendar_id" value="{{ calendar_id }}">
               <!-- Personal Information Section -->
               <div class="mb-5">
                 <h5 class="border-bottom pb-2 mb-4">Personal Information</h5>
@@ -1044,12 +1081,28 @@ async function handleUnifiedCalendarButton(button) {
                 </div>
               </div>
 
-              <!-- Schedule Live Call Dropdown -->
+              <!-- CIM Call Host Selection -->
               <div class="mb-4">
+                <label class="form-label fw-semibold">Choose your CIM call host</label>
+                <div class="d-flex flex-wrap gap-3 mt-2">
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="cim_call_host" id="cimHostBen" value="Ben" required>
+                    <label class="form-check-label fw-medium" for="cimHostBen">Call with Ben</label>
+                  </div>
+                  <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="cim_call_host" id="cimHostMitch" value="Mitch" required>
+                    <label class="form-check-label fw-medium" for="cimHostMitch">Call with Mitch</label>
+                  </div>
+                </div>
+               <!--  <div class="form-text mt-1">Select whether you want your CIM reviewed on a call with Ben or Mitch.</div> -->
+              </div>
+
+              <!-- Schedule Live Call Dropdown -->
+              <div class="mb-4" id="cimCallSection">
                 <!-- <label for="cimCallSelect" class="form-label fw-semibold">Choose in which live call your CIM should be reviewed</label> -->
-                <div class="form-text mb-2"><strong>Note:</strong> All times listed below are in <strong>EST</strong>.</div>
-                <select class="form-select form-select-lg" id="cimCallSelect" name="cim_call_id" required>
-                  <option value="">Choose in which live call your CIM should be reviewed</option>
+                <div class="form-text mb-2"><strong>Note:</strong> All times listed below are in <strong>EST</strong>. Maximum 5 slots per call.</div>
+                <select class="form-select form-select-lg text-white" id="cimCallSelect" name="cim_call_id" required disabled>
+                  <option value="">Select host above first, then choose a call</option>
                 </select>
                 <div id="cimCallsLoading" class="text-muted mt-2" style="display: none;">
                   <small>Loading available calls...</small>
